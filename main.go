@@ -9,6 +9,11 @@ import (
 	"github.com/gin-contrib/cors"        // ✅ 加上這行
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"  // PostgreSQL驅動
+
+	"github.com/golang-jwt/jwt/v5"
+	"time"
+	"fmt"
+	
 )
 
 type Estimation struct {
@@ -21,6 +26,20 @@ type Estimation struct {
 }
 
 var db *sql.DB
+
+var jwtKey = []byte("mysecretkey") // 實際可用 os.Getenv 讀環境變數
+
+type Credentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type Claims struct {
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	jwt.RegisteredClaims
+}
+
 
 func initDB() {
 	connStr := os.Getenv("DATABASE_URL")  // Zeabur env var
@@ -59,6 +78,39 @@ func createEstimation(c *gin.Context) {
 	c.JSON(http.StatusOK, est)
 }
 
+func login(c *gin.Context) {
+	var creds Credentials
+	if err := c.BindJSON(&creds); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	if creds.Username != "admin" || creds.Password != "123456" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	role := "admin"
+	expirationTime := time.Now().Add(24 * time.Hour)
+	claims := &Claims{
+		Username: creds.Username,
+		Role:     role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+}
+
+
 func main() {
 	initDB()
 	r := gin.Default()
@@ -68,6 +120,9 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
+
+	r.POST("/api/login", login) // ✅ 加入登入路由
+
 	
 	r.POST("/api/estimations", createEstimation)
 	port := os.Getenv("PORT")
