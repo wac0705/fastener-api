@@ -60,13 +60,33 @@ type Claims struct {
 
 
 func initDB() {
-	connStr := os.Getenv("DATABASE_URL")  // Zeabur env var
+	connStr := os.Getenv("DATABASE_URL")
+
+	// ✅ 自動加上 sslmode=require（若未附帶）
+	if !containsSSLMode(connStr) {
+		connStr += "?sslmode=require"
+	}
+
 	var err error
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		panic(err)
 	}
 }
+
+// 🔍 檢查連線字串是否包含 sslmode 參數
+func containsSSLMode(s string) bool {
+	return len(s) >= 10 &&
+		(contains(s, "sslmode=require") ||
+			contains(s, "sslmode=verify-full") ||
+			contains(s, "sslmode=disable"))
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s[len(s)-len(substr):] == substr || s[len(s)-len(substr)-1:] == "&"+substr)
+}
+
 
 func calculateCost(est Estimation) float64 {
 	// 簡化計算邏輯 (實際可擴展)
