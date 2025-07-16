@@ -136,6 +136,38 @@ func login(c *gin.Context) {
 }
 
 
+// JWT 驗證中介層
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Missing Authorization header"})
+			return
+		}
+
+		tokenStr := authHeader[len("Bearer "):]
+		claims := &Claims{}
+
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			return
+		}
+
+		// 把角色和使用者名稱存到 context 裡
+		c.Set("username", claims.Username)
+		c.Set("role", claims.Role)
+
+		c.Next()
+	}
+}
+
+
+
+
 
 func main() {
 	initDB()
@@ -149,8 +181,7 @@ func main() {
 
 	r.POST("/api/login", login) // ✅ 加入登入路由
 
-	
-	r.POST("/api/estimations", createEstimation)
+	r.POST("/api/estimations", authMiddleware(), createEstimation)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
