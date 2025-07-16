@@ -106,25 +106,21 @@ func login(c *gin.Context) {
 	var hashedPassword string
 	var role string
 
-	query := `
-		SELECT u.password_hash, r.name
-		FROM users u
-		LEFT JOIN roles r ON u.role_id = r.id
-		WHERE u.username = $1 AND u.is_active = TRUE
-	`
-
-	err := db.QueryRow(query, creds.Username).Scan(&hashedPassword, &role)
+	err := db.QueryRow("SELECT password_hash, role FROM users WHERE username = $1", creds.Username).Scan(&hashedPassword, &role)
 	if err != nil {
+		// ✅ 印出錯誤詳細
+		fmt.Println("查詢失敗：", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
 
-	// bcrypt 驗證密碼
+	// ✅ 檢查密碼是否正確
 	if bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(creds.Password)) != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect password"})
 		return
 	}
 
+	// ✅ JWT Token 建立
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
 		Username: creds.Username,
@@ -146,6 +142,7 @@ func login(c *gin.Context) {
 		"role":  role,
 	})
 }
+
 
 
 func getAccounts(c *gin.Context) {
