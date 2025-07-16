@@ -32,6 +32,14 @@ type User struct {
 }
 
 
+type UserAccount struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	IsActive bool   `json:"is_active"`
+}
+
+
 
 
 var db *sql.DB
@@ -140,6 +148,128 @@ func login(c *gin.Context) {
 }
 
 
+func getAccounts(c *gin.Context) {
+	role := c.GetString("role")
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied"})
+		return
+	}
+
+	rows, err := db.Query(`
+		SELECT u.id, u.username, r.name, u.is_active
+		FROM users u
+		LEFT JOIN roles r ON u.role_id = r.id
+		ORDER BY u.id`)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var users []UserAccount
+	for rows.Next() {
+		var u UserAccount
+		if err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.IsActive); err == nil {
+			users = append(users, u)
+		}
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func createAccount(c *gin.Context) {
+	role := c.GetString("role")
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied"})
+		return
+	}
+
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password hash failed"})
+		return
+	}
+
+	var roleID int
+	err = db.QueryRow("SELECT id FROM roles WHERE name = $1", req.Role).Scan(&roleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	_, err = db.Exec("INSERT INTO users (username, password_hash, role_id, is_active) VALUES ($1, $2, $3, TRUE)",
+		req.Username, string(hashed), roleID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Insert failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User created"})
+}
+
+func updateAccount(c *gin.Context) {
+	role := c.GetString("role")
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied"})
+		return
+	}
+
+	id := c.Param("id")
+	var req struct {
+		Role     string `json:"role"`
+		IsActive bool   `json:"is_active"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
+		return
+	}
+
+	var roleID int
+	err := db.QueryRow("SELECT id FROM roles WHERE name = $1", req.Role).Scan(&roleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	_, err = db.Exec("UPDATE users SET role_id = $1, is_active = $2 WHERE id = $3", roleID, req.IsActive, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Update failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User updated"})
+}
+
+func deleteAccount(c *gin.Context) {
+	role := c.GetString("role")
+	if role != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Permission denied"})
+		return
+	}
+
+	id := c.Param("id")
+	_, err := db.Exec("DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
+}
+
+
+
 
 
 
@@ -187,6 +317,16 @@ func main() {
 	})
 
 	r.POST("/api/login", login) // ✅ 加入登入路由
+
+	// 📄 取得所有使用者（只限 admin）
+	r.GET("/api/manage-accounts", authMiddleware(), getAccounts)
+	// ➕ 新增使用者
+	r.POST("/api/manage-accounts", authMiddleware(), createAccount)
+	// ✏️ 修改使用者（含角色、啟用狀態）
+	r.PUT("/api/manage-accounts/:id", authMiddleware(), updateAccount)
+	// ❌ 刪除使用者
+	r.DELETE("/api/manage-accounts/:id", authMiddleware(), deleteAccount)
+
 
 	r.POST("/api/estimations", authMiddleware(), createEstimation)
 	port := os.Getenv("PORT")
