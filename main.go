@@ -1,7 +1,7 @@
 package main
 
 import (
-	"strings"
+	"log"
 	"fmt"
 	"database/sql"
 	"encoding/json"
