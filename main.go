@@ -63,16 +63,16 @@ type Claims struct {
 func initDB() {
 	rawURL := os.Getenv("DATABASE_URL")
 
-	// ➕ 如果沒有加 sslmode，強制加上
+	// ➕ 強制加 sslmode=disable
 	if !strings.Contains(rawURL, "sslmode=") {
 		if strings.Contains(rawURL, "?") {
-			rawURL += "&sslmode=require"
+			rawURL += "&sslmode=disable"
 		} else {
-			rawURL += "?sslmode=require"
+			rawURL += "?sslmode=disable"
 		}
 	}
 
-	fmt.Println("🔗 最終連線字串：", rawURL) // ✅ 方便你在 Zeabur logs 裡看到
+	fmt.Println("🔗 最終連線字串：", rawURL)
 
 	var err error
 	db, err = sql.Open("postgres", rawURL)
@@ -84,6 +84,7 @@ func initDB() {
 		panic("❌ 資料庫無回應：" + err.Error())
 	}
 }
+
 
 
 // 🔍 檢查連線字串是否包含 sslmode 參數
