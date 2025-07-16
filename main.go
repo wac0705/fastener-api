@@ -138,33 +138,34 @@ func login(c *gin.Context) {
 	}
 
 	var hashedPassword string
-	var role string
+	var roleName string
 
-	// ✅ 改成 JOIN roles 抓角色名稱
+	// ✅ 查詢包含角色名稱（JOIN）
 	err := db.QueryRow(`
 		SELECT u.password_hash, r.name
 		FROM users u
 		LEFT JOIN roles r ON u.role_id = r.id
 		WHERE u.username = $1
-	`, creds.Username).Scan(&hashedPassword, &role)
+	`, creds.Username).Scan(&hashedPassword, &roleName)
 
 	if err != nil {
-		fmt.Println("查詢失敗：", err)
+		// ❌ 找不到使用者或查詢錯誤
+		fmt.Println("❌ 查詢失敗：", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
 
-	// ✅ 檢查密碼
+	// ✅ 密碼比對
 	if bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(creds.Password)) != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect password"})
 		return
 	}
 
-	// ✅ JWT Token 建立
+	// ✅ 建立 JWT Token
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
 		Username: creds.Username,
-		Role:     role,
+		Role:     roleName,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -177,9 +178,10 @@ func login(c *gin.Context) {
 		return
 	}
 
+	// ✅ 登入成功回傳 token 與角色
 	c.JSON(http.StatusOK, gin.H{
 		"token": tokenString,
-		"role":  role,
+		"role":  roleName,
 	})
 }
 
