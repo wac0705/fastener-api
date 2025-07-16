@@ -61,16 +61,8 @@ type Claims struct {
 
 
 func initDB() {
-	rawURL := os.Getenv("DATABASE_URL")
-
-	// ➕ 強制加 sslmode=disable
-	if !strings.Contains(rawURL, "sslmode=") {
-		if strings.Contains(rawURL, "?") {
-			rawURL += "&sslmode=disable"
-		} else {
-			rawURL += "?sslmode=disable"
-		}
-	}
+	// ✅ 直接寫死正確連線資訊（使用 postgres 帳號，而非 root）
+	rawURL := "postgres://postgres:NzW7lrhfHqt2aoe1MA64085jmpn93GZX@tpe0.clusters.zeabur.com:32072/postgres?sslmode=disable"
 
 	fmt.Println("🔗 最終連線字串：", rawURL)
 
@@ -83,7 +75,10 @@ func initDB() {
 	if err = db.Ping(); err != nil {
 		panic("❌ 資料庫無回應：" + err.Error())
 	}
+
+	log.Println("✅ 成功連線到 PostgreSQL 資料庫")
 }
+
 
 
 
