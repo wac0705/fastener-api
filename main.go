@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"fmt"
 	"database/sql"
 	"encoding/json"
@@ -60,19 +61,30 @@ type Claims struct {
 
 
 func initDB() {
-	connStr := os.Getenv("DATABASE_URL")
+	rawURL := os.Getenv("DATABASE_URL")
 
-	// ✅ 自動加上 sslmode=require（若未附帶）
-	if !containsSSLMode(connStr) {
-		connStr += "?sslmode=require"
+	// ➕ 如果沒有加 sslmode，強制加上
+	if !strings.Contains(rawURL, "sslmode=") {
+		if strings.Contains(rawURL, "?") {
+			rawURL += "&sslmode=require"
+		} else {
+			rawURL += "?sslmode=require"
+		}
 	}
+
+	fmt.Println("🔗 最終連線字串：", rawURL) // ✅ 方便你在 Zeabur logs 裡看到
 
 	var err error
-	db, err = sql.Open("postgres", connStr)
+	db, err = sql.Open("postgres", rawURL)
 	if err != nil {
-		panic(err)
+		panic("❌ 無法開啟資料庫：" + err.Error())
+	}
+
+	if err = db.Ping(); err != nil {
+		panic("❌ 資料庫無回應：" + err.Error())
 	}
 }
+
 
 // 🔍 檢查連線字串是否包含 sslmode 參數
 func containsSSLMode(s string) bool {
