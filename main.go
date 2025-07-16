@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gin-contrib/cors"        // ✅ 加上這行
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"  // PostgreSQL驅動
 )
@@ -61,6 +62,9 @@ func createEstimation(c *gin.Context) {
 func main() {
 	initDB()
 	r := gin.Default()
+	
+	r.Use(cors.Default()) // ✅ 允許所有來源跨域，測試或前端呼叫用
+	
 	r.POST("/api/estimations", createEstimation)
 	port := os.Getenv("PORT")
 	if port == "" {
