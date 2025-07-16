@@ -2,12 +2,12 @@ github.com/bytedance/sonic v1.11.3 h1:o5HA2BhSuPKJsQG2AQY威3Q2f8iNOt+OD/3Q2on0m
 github.com/bytedance/sonic v1.11.3/go.mod h1:iUDitdGnn+QMe7zhDUoQP EttPtwTfC6DZU1dysL3TE=
 github.com/bytedance/sonic/loader v0.1.1 h1:c+e5Pt1kYGiHRTMx5bPuZQIq/r82Q9lPyHeEhD6+PD4=
 github.com/bytedance/sonic/loader v0.1.1/go.mod h1:ncP89zfokxS5eFdqQeKYwm4D0DOIal9xiP4dsEehsEQ=
-github.com/cloudwego/base64x v0.1.4 h1:jwCgWpFanWm1+2lyT4w3hEjInJYVXAqhpQrLN+Qe9W0=
+github.com/cloudwego/base64x v0.1.4 h1:jwCgWpFanWm1+2lyT4w3pn19uHISfrBKDHEw7MfcDo0=
 github.com/cloudwego/base64x v0.1.4/go.mod h1:0zlkT4Wgg5C0PkQHZpxywAGH+YBcV4b1tZjFIvet5UY=
-github.com/cloudwego/iasm v0.2.0 h1:1KNIy1I0H9hNNFEEH3DVnI4Uuj/N+k+w87GX x6VDo0E=
+github.com/cloudwego/iasm v0.2.0 h1:1KNIy1I0H9hNNFEEH3DVnI4Uuj/N+k+w87GXx6VDo0E=
 github.com/cloudwego/iasm v0.2.0/go.mod h1:8rXZaNYTzU+PB2cQ7ypDDjxs9bNaSjIECQ5O7UBqB3Y=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/davecgh/go-spew v1.1.1 h1:RBdSC8fvbe/m1gb71jB4gm7S8keEkUXPkwHor6yM2v0=
+github.com/davecgh/go-spew v1.1.1 h1:RBdSC8fvbe/m1gb71jB4gm7S8keEkUXPkwHor6M2v0=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/gabriel-vasile/mimetype v1.4.3 h1:TRWk7se+TOjCYMiU00xG3pn19uHISfrBKDHEw7MfcDo=
 github.com/gabriel-vasile/mimetype v1.4.3/go.mod h1:d8uq/6dyvjGvi5L3dlS3AR0TbH0xyFywFpfVkqncVuM=
