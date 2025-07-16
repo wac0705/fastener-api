@@ -1,5 +1,5 @@
 github.com/bytedance/sonic v1.11.3 h1:o5HA2BhSuPKJsQG2AQY威3Q2f8iNOt+OD/3Q2on0mo=
-github.com/bytedance/sonic v1.11.3/go.mod h1:iUDitdGnn+QMe7zhDUoQP EttPtwTfC6DZU1dysL3TE=
+github.com/bytedance/sonic v1.11.3/go.mod h1:iUDitdGnn+QMe7zhDUoQP
 github.com/bytedance/sonic/loader v0.1.1 h1:c+e5Pt1kYGiHRTMx5bPuZQIq/r82Q9lPyHeEhD6+PD4=
 github.com/bytedance/sonic/loader v0.1.1/go.mod h1:ncP89zfokxS5eFdqQeKYwm4D0DOIal9xiP4dsEehsEQ=
 github.com/cloudwego/base64x v0.1.4 h1:jwCgWpFanWm1+2lyT4w3pn19uHISfrBKDHEw7MfcDo0=
@@ -54,9 +54,9 @@ github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizE16Z5tXB1vDArlP9do
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
-github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqdmU3t9sKMJIfcBb3P pQqIUAASK9is=
+github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqdmU3t9sKMJIfcBb3P
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
-github.com/stretchr/testify v1.9.0/go.mod h1:r2papVy5K/iXx vQuCr23l5I0yrEO6BbYZ2cUu1mvX90=
+github.com/stretchr/testify v1.9.0/go.mod h1:r2papVy5K/iXx
 github.com/twitchyliquid64/golang-asm v0.15.1 h1:SU5vSMR7hnwNxj24w34ZyCi/FmDZTkS4MhqMhdFk5YI=
 github.com/twitchyliquid64/golang-asm v0.15.1/go.mod h1:1t3CNz9L4lpJfIJ5LIYG2p1V3vc1PREFRFly8MzFSIw=
 github.com/ugorji/go/codec v1.2.12 h1:9LC83zGrHhuUA9l16/ubHF4uTbspyWEW6z0zRq16X3k=
