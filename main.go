@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gin-contrib/cors"        // ✅ 加上這行
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"  // PostgreSQL驅動
 
 	"github.com/golang-jwt/jwt/v5"
-	"time"
+	"golang.org/x/crypto/bcrypt" // 🔒 密碼比對用
 	
 )
 
@@ -30,12 +31,7 @@ type User struct {
 	Role     string `json:"role"`
 }
 
-var users = []User{
-	{Username: "admin", Password: "123456", Role: "admin"},
-	{Username: "sales", Password: "123456", Role: "sales"},
-	{Username: "engineer", Password: "123456", Role: "engineer"},
-	{Username: "logistics", Password: "123456", Role: "logistics"},
-}
+
 
 
 var db *sql.DB
@@ -91,6 +87,7 @@ func createEstimation(c *gin.Context) {
 	c.JSON(http.StatusOK, est)
 }
 
+
 func login(c *gin.Context) {
 	var creds Credentials
 	if err := c.ShouldBindJSON(&creds); err != nil {
@@ -98,24 +95,24 @@ func login(c *gin.Context) {
 		return
 	}
 
-	// 找出對應的帳號
-	var user *User
-	for _, u := range users {
-		if u.Username == creds.Username && u.Password == creds.Password {
-			user = &u
-			break
-		}
+	var hashedPassword string
+	var role string
+
+	err := db.QueryRow("SELECT password_hash, role FROM users WHERE username = $1", creds.Username).Scan(&hashedPassword, &role)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		return
 	}
 
-	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	if bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(creds.Password)) != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect password"})
 		return
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
-		Username: user.Username,
-		Role:     user.Role,
+		Username: creds.Username,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -130,9 +127,12 @@ func login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": tokenString,
-		"role":  user.Role,
+		"role":  role,
 	})
 }
+
+
+
 
 
 // JWT 驗證中介層
