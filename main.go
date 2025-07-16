@@ -25,6 +25,20 @@ type Estimation struct {
 	AISuggestions float64         `json:"ai_suggestions"` // AI預測調整
 }
 
+type User struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Role     string `json:"role"`
+}
+
+var users = []User{
+	{Username: "admin", Password: "123456", Role: "admin"},
+	{Username: "sales", Password: "123456", Role: "sales"},
+	{Username: "engineer", Password: "123456", Role: "engineer"},
+	{Username: "logistics", Password: "123456", Role: "logistics"},
+}
+
+
 var db *sql.DB
 
 var jwtKey = []byte("mysecretkey") // 實際可用 os.Getenv 讀環境變數
@@ -80,21 +94,29 @@ func createEstimation(c *gin.Context) {
 
 func login(c *gin.Context) {
 	var creds Credentials
-	if err := c.BindJSON(&creds); err != nil {
+	if err := c.ShouldBindJSON(&creds); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
-	if creds.Username != "admin" || creds.Password != "123456" {
+	// 找出對應的帳號
+	var user *User
+	for _, u := range users {
+		if u.Username == creds.Username && u.Password == creds.Password {
+			user = &u
+			break
+		}
+	}
+
+	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
-	role := "admin"
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &Claims{
-		Username: creds.Username,
-		Role:     role,
+		Username: user.Username,
+		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -107,8 +129,12 @@ func login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString})
+	c.JSON(http.StatusOK, gin.H{
+		"token": tokenString,
+		"role":  user.Role,
+	})
 }
+
 
 
 func main() {
