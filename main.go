@@ -62,7 +62,7 @@ type Claims struct {
 
 func initDB() {
 	// ✅ 直接寫死正確連線資訊（使用 postgres 帳號，而非 root）
-	rawURL := "postgres://postgres:NzW7lrhfHqt2aoe1MA64085jmpn93GZX@tpe0.clusters.zeabur.com:32072/postgres?sslmode=disable"
+	rawURL := "postgres://root:NzW7lrhfHqt2aoe1MA64085jmpn93GZX@tpe0.clusters.zeabur.com:32072/postgres?sslmode=disable"
 
 	fmt.Println("🔗 最終連線字串：", rawURL)
 
