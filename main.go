@@ -64,6 +64,10 @@ func main() {
 	r := gin.Default()
 	
 	r.Use(cors.Default()) // ✅ 允許所有來源跨域，測試或前端呼叫用
+
+	r.GET("/health", func(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	})
 	
 	r.POST("/api/estimations", createEstimation)
 	port := os.Getenv("PORT")
