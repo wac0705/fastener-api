@@ -98,12 +98,20 @@ func login(c *gin.Context) {
 	var hashedPassword string
 	var role string
 
-	err := db.QueryRow("SELECT password_hash, role FROM users WHERE username = $1", creds.Username).Scan(&hashedPassword, &role)
+	query := `
+		SELECT u.password_hash, r.name
+		FROM users u
+		LEFT JOIN roles r ON u.role_id = r.id
+		WHERE u.username = $1 AND u.is_active = TRUE
+	`
+
+	err := db.QueryRow(query, creds.Username).Scan(&hashedPassword, &role)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
 		return
 	}
 
+	// bcrypt 驗證密碼
 	if bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(creds.Password)) != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect password"})
 		return
