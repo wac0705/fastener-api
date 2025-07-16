@@ -5,6 +5,7 @@ go 1.22
 require (
 	github.com/gin-contrib/cors v1.7.2 // ✅ ← 這行新加的
 	github.com/gin-gonic/gin v1.10.0
+	github.com/golang-jwt/jwt/v5 v5.2.1 // ✅ 新增
 	github.com/lib/pq v1.10.9
 )
 
