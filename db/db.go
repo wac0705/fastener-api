@@ -1,4 +1,3 @@
-// db/db.go
 package db
 
 import (
@@ -13,15 +12,22 @@ var Conn *sql.DB
 
 func Init() {
 	var err error
-	Conn, err = sql.Open("postgres", os.Getenv("DATABASE_URL"))
+
+	// 從環境變數讀取 DATABASE_URL
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		log.Fatal("❌ 缺少 DATABASE_URL 環境變數")
+	}
+
+	Conn, err = sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal("DB連線失敗:", err)
+		log.Fatal("❌ 資料庫開啟失敗:", err)
 	}
 
 	err = Conn.Ping()
 	if err != nil {
-		log.Fatal("無法 Ping DB:", err)
+		log.Fatal("❌ 資料庫無法 Ping:", err)
 	}
 
-	log.Println("✅ 成功連線到 PostgreSQL")
+	log.Println("✅ 成功連接 PostgreSQL")
 }
