@@ -236,7 +236,15 @@ func deleteAccount(c *gin.Context) {
 func main() {
 	initDB()
 	r := gin.Default()
-	r.Use(cors.Default())
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"}, // 或限制特定前端網址
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+   		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
+    		ExposeHeaders:    []string{"Content-Length"},
+    		AllowCredentials: true,
+    		MaxAge:           12 * time.Hour,
+	}))
+
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
