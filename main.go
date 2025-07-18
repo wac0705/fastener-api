@@ -11,11 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq" // a postgres driver
 
-	"github.com/wujohnny/fastener-api/db"
-	"github.com/wujohnny/fastener-api/handler"
-	"github.com/wujohnny/fastener-api/middleware"
-	"github.com/wujohnny/fastener-api/routes"
+	"fastener-api/db"
+	"fastener-api/handler"
+	"fastener-api/middleware"
+	"fastener-api/routes"
 )
+
+// ... 剩下的程式碼和之前一樣，不用變 ...
 
 func main() {
 	// 初始化資料庫連線
@@ -58,13 +60,6 @@ func main() {
 			accounts.PUT("/:id", handler.UpdateAccount)
 			accounts.DELETE("/:id", handler.DeleteAccount)
 		}
-
-		// 估價相關路由 (未來可以移到自己的 handler)
-		// estimations := api.Group("/estimations")
-		// estimations.Use(middleware.JWTAuthMiddleware())
-		// {
-		// 	estimations.POST("/", handler.CreateEstimation)
-		// }
 	}
 
 	// 讀取 PORT 環境變數，若無則使用 8080
