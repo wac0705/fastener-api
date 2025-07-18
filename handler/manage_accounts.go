@@ -88,6 +88,19 @@ func UpdateAccount(c *gin.Context) {
 func DeleteAccount(c *gin.Context) {
 	id := c.Param("id")
 
+	// 🔐 取得 JWT Claims（你需確認 middleware 有 c.Set("role", role)）
+	roleVal, exists := c.Get("role")
+	if !exists || roleVal != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only admin can delete accounts"})
+		return
+	}
+
+	// 🛑 不允許刪除 admin 自己
+	if id == "1" { // 如果你 admin 帳號固定是 id=1
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cannot delete admin account"})
+		return
+	}
+
 	_, err := db.Conn.Exec(`DELETE FROM accounts WHERE id = $1`, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Delete failed"})
