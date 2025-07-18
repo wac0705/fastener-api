@@ -1,4 +1,4 @@
-// fastener-api-main/main.go
+// fastener-api-main/main.go (修正版)
 package main
 
 import (
@@ -19,10 +19,13 @@ import (
 
 func main() {
 	db.Init()
-	defer db.Conn.Close()
+	if db.Conn != nil {
+		defer db.Conn.Close()
+	}
 
 	r := gin.Default()
 
+	// CORS 中介軟體設定，允許來自前端的請求
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://fastener-frontend-v2.zeabur.app", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -33,45 +36,52 @@ func main() {
 	}))
 
 	// --- 路由設定 ---
+
+	// 健康檢查路由
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	api := r.Group("/api")
+	// 登入路由，不需要驗證
+	// 直接在 'r' 上註冊，路徑為 /api/login
+	r.POST("/api/login", routes.LoginHandler(db.Conn))
+
+	// --- 基礎資料管理 API 群組 ---
+	// 路由群組改為 /api/definitions
+	definitions := r.Group("/api/definitions")
+	definitions.Use(middleware.JWTAuthMiddleware()) // 所有基礎資料 API 都需要驗證
 	{
-		api.POST("/login", routes.LoginHandler(db.Conn))
-
-		// --- 基礎資料管理 API 群組 ---
-		definitions := api.Group("/definitions")
-		definitions.Use(middleware.JWTAuthMiddleware()) // 所有基礎資料 API 都需要驗證
+		// 公司管理的路由
+		companies := definitions.Group("/companies")
 		{
-			// 公司管理的路由
-			companies := definitions.Group("/companies")
-			{
-				companies.POST("", handler.CreateCompany)
-				companies.GET("", handler.GetCompanies)
-				companies.GET("/:id", handler.GetCompanyByID)
-				companies.PUT("/:id", handler.UpdateCompany)
-				companies.DELETE("/:id", handler.DeleteCompany)
-			}
-		}
-
-		// 帳號管理 API 群組
-		accounts := api.Group("/manage-accounts")
-		accounts.Use(middleware.JWTAuthMiddleware())
-		{
-			accounts.GET("", handler.GetAccounts)
-			accounts.POST("", handler.CreateAccount)
-			accounts.PUT("/:id", handler.UpdateAccount)
-			accounts.DELETE("/:id", handler.DeleteAccount)
+			companies.POST("", handler.CreateCompany)
+			companies.GET("", handler.GetCompanies)
+			companies.GET("/:id", handler.GetCompanyByID)
+			companies.PUT("/:id", handler.UpdateCompany)
+			companies.DELETE("/:id", handler.DeleteCompany)
 		}
 	}
 
+	// 帳號管理 API 群組
+	// 路由群組改為 /api/manage-accounts
+	accounts := r.Group("/api/manage-accounts")
+	accounts.Use(middleware.JWTAuthMiddleware())
+	{
+		accounts.GET("", handler.GetAccounts)
+		accounts.POST("", handler.CreateAccount)
+		accounts.PUT("/:id", handler.UpdateAccount)
+		accounts.DELETE("/:id", handler.DeleteAccount)
+	}
+
+
+	// --- 啟動伺服器 ---
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
 
 	log.Printf("🚀 Server starting on port %s", port)
-	r.Run(":" + port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("❌ Server failed to start: %v", err)
+	}
 }
