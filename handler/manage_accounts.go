@@ -6,9 +6,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/wujohnny/fastener-api/db"
-	"github.com/wujohnny/fastener-api/models"
 	"golang.org/x/crypto/bcrypt"
+
+	// 修正引用路徑
+	"fastener-api/db"
+	"fastener-api/models"
 )
 
 // permissionDenied 是一個輔助函式，用於回傳權限不足的錯誤
@@ -25,7 +27,6 @@ func GetAccounts(c *gin.Context) {
 		return
 	}
 
-	// ⚠️ 注意：統一使用 users 和 roles 資料表
 	rows, err := db.Conn.Query(`
 		SELECT u.id, u.username, r.name as role, u.is_active 
 		FROM users u 
