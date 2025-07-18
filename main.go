@@ -1,4 +1,4 @@
-// fastener-api-main/main.go (修正版)
+// fastener-api-main/main.go (最終修正版)
 package main
 
 import (
@@ -18,14 +18,15 @@ import (
 )
 
 func main() {
+	// 初始化資料庫連線
 	db.Init()
-	if db.Conn != nil {
-		defer db.Conn.Close()
-	}
+	// 無條件設定 defer，因為如果 Init 失敗，程式會直接退出，不會執行到這裡
+	// 如果 Init 成功，db.Conn 必定有值
+	defer db.Conn.Close()
 
 	r := gin.Default()
 
-	// CORS 中介軟體設定，允許來自前端的請求
+	// CORS 中介軟體設定
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://fastener-frontend-v2.zeabur.app", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -42,16 +43,13 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	// 登入路由，不需要驗證
-	// 直接在 'r' 上註冊，路徑為 /api/login
+	// 登入路由
 	r.POST("/api/login", routes.LoginHandler(db.Conn))
 
-	// --- 基礎資料管理 API 群組 ---
-	// 路由群組改為 /api/definitions
+	// 基礎資料管理 API 群組
 	definitions := r.Group("/api/definitions")
-	definitions.Use(middleware.JWTAuthMiddleware()) // 所有基礎資料 API 都需要驗證
+	definitions.Use(middleware.JWTAuthMiddleware())
 	{
-		// 公司管理的路由
 		companies := definitions.Group("/companies")
 		{
 			companies.POST("", handler.CreateCompany)
@@ -63,7 +61,6 @@ func main() {
 	}
 
 	// 帳號管理 API 群組
-	// 路由群組改為 /api/manage-accounts
 	accounts := r.Group("/api/manage-accounts")
 	accounts.Use(middleware.JWTAuthMiddleware())
 	{
@@ -73,7 +70,6 @@ func main() {
 		accounts.DELETE("/:id", handler.DeleteAccount)
 	}
 
-
 	// --- 啟動伺服器 ---
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -81,7 +77,8 @@ func main() {
 	}
 
 	log.Printf("🚀 Server starting on port %s", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("❌ Server failed to start: %v", err)
-	}
+
+	// 使用 log.Fatal 包裹 r.Run 是更常見且穩健的做法
+	// 如果 r.Run 回傳錯誤，程式會記錄錯誤並立即以非 0 狀態退出
+	log.Fatal(r.Run(":" + port))
 }
