@@ -13,7 +13,7 @@ import (
 	"fastener-api/routes"
 
 	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
+	"github.comcom/gin-gonic/gin"
 	_ "github.com/lib/pq" // a postgres driver
 )
 
@@ -72,7 +72,7 @@ func main() {
 				customers.DELETE("/:id", handler.DeleteCustomer)
 			}
 
-			// 【第三步修改處】產品類別管理的路由
+			// 產品類別管理的路由
 			categories := definitions.Group("/product-categories")
 			{
 				categories.POST("", handler.CreateProductCategory)
