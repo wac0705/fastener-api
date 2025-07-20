@@ -62,7 +62,7 @@ func main() {
 				companies.DELETE("/:id", handler.DeleteCompany)
 			}
 
-			// 客戶管理的路由
+			// 【修正點】補上客戶管理的路由
 			customers := definitions.Group("/customers")
 			{
 				customers.POST("", handler.CreateCustomer)
@@ -72,7 +72,7 @@ func main() {
 				customers.DELETE("/:id", handler.DeleteCustomer)
 			}
 
-			// 【第三步修改處】產品類別管理的路由
+			// 【修正點】補上產品類別管理的路由
 			categories := definitions.Group("/product-categories")
 			{
 				categories.POST("", handler.CreateProductCategory)
