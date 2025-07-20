@@ -1,4 +1,4 @@
-// fastener-api-main/main.go (完整重寫修正版)
+// fastener-api-main/main.go (最終確定版)
 package main
 
 import (
@@ -22,11 +22,10 @@ func main() {
 	db.Init()
 	defer db.Conn.Close()
 
-	// 建立一個預設的 Gin 引擎
+	// 建立 Gin 引擎
 	r := gin.Default()
 
-	// --- CORS 中介軟體設定 (正式環境安全模式) ---
-	// 既然確認後端能收到請求，我們就換回更安全的指定來源設定
+	// 設定 CORS 中介軟體
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://fastener-frontend-v2.zeabur.app", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -36,7 +35,6 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-
 	// --- 路由設定 ---
 
 	// 健康檢查路由
@@ -44,8 +42,10 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	// 登入路由
+	// 登入路由 - 這是關鍵！
 	r.POST("/api/login", routes.LoginHandler(db.Conn))
+
+	// --- 需要 JWT 驗證的路由群組 ---
 
 	// 基礎資料管理 API 群組
 	definitions := r.Group("/api/definitions")
@@ -78,6 +78,6 @@ func main() {
 	}
 
 	log.Printf("🚀 Server starting on port %s", port)
-
+	
 	log.Fatal(r.Run(":" + port))
 }
