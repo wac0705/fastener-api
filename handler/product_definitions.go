@@ -2,12 +2,13 @@
 package handler
 
 import (
+	"database/sql"
 	"fastener-api/db"
 	"fastener-api/models"
 	"net/http"
 	"strconv" // 匯入 strconv 套件用於字串轉換
 
-	"github.com/gin-gonic/gin" // 【修正】修正了 gin 的匯入路徑
+	"github.com/gin-gonic/gin"
 )
 
 // --- 產品主類別 (ProductCategory) CRUD ---
@@ -39,19 +40,33 @@ func GetProductCategories(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var categories []models.ProductCategory
+	// 【修正】確保 categories 是一個 non-nil 的 slice，即使沒有資料也是一個空 slice
+	categories := make([]models.ProductCategory, 0)
 	for rows.Next() {
 		var category models.ProductCategory
 		if err := rows.Scan(&category.ID, &category.CategoryCode, &category.Name); err == nil {
 			categories = append(categories, category)
 		}
 	}
+
+	// 檢查迴圈中是否有錯誤
+	if err = rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "讀取資料時發生錯誤: " + err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, categories)
 }
 
 // UpdateProductCategory 更新產品類別
 func UpdateProductCategory(c *gin.Context) {
-	idStr := c.Param("id") // 先取得字串格式的 ID
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的 ID 格式"})
+		return
+	}
+
 	var category models.ProductCategory
 	if err := c.ShouldBindJSON(&category); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的請求格式: " + err.Error()})
@@ -59,18 +74,18 @@ func UpdateProductCategory(c *gin.Context) {
 	}
 
 	sqlStatement := `UPDATE product_categories SET category_code = $1, name = $2 WHERE id = $3`
-	_, err := db.Conn.Exec(sqlStatement, category.CategoryCode, category.Name, idStr)
+	res, err := db.Conn.Exec(sqlStatement, category.CategoryCode, category.Name, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新產品類別失敗: " + err.Error()})
 		return
 	}
 
-	// 【修正】將字串 ID 轉換為整數，並回傳給前端
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "無效的 ID 格式"})
-		return
-	}
+	count, _ := res.RowsAffected()
+    if count == 0 {
+        c.JSON(http.StatusNotFound, gin.H{"error": "找不到要更新的產品類別"})
+        return
+    }
+
 	category.ID = id
 	c.JSON(http.StatusOK, category)
 }
@@ -81,6 +96,11 @@ func DeleteProductCategory(c *gin.Context) {
 	sqlStatement := `DELETE FROM product_categories WHERE id = $1`
 	res, err := db.Conn.Exec(sqlStatement, id)
 	if err != nil {
+		// 【修正】處理外鍵約束錯誤，提供更友善的提示
+		if isForeignKeyViolation(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "無法刪除，此類別可能已被其他資料關聯使用"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "刪除產品類別失敗: " + err.Error()})
 		return
 	}
