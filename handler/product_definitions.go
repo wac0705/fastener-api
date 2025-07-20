@@ -5,8 +5,9 @@ import (
 	"fastener-api/db"
 	"fastener-api/models"
 	"net/http"
+	"strconv" // 匯入 strconv 套件用於字串轉換
 
-	"github.comcom/gin-gonic/gin"
+	"github.com/gin-gonic/gin" // 【修正】修正了 gin 的匯入路徑
 )
 
 // --- 產品主類別 (ProductCategory) CRUD ---
@@ -50,7 +51,7 @@ func GetProductCategories(c *gin.Context) {
 
 // UpdateProductCategory 更新產品類別
 func UpdateProductCategory(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id") // 先取得字串格式的 ID
 	var category models.ProductCategory
 	if err := c.ShouldBindJSON(&category); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的請求格式: " + err.Error()})
@@ -58,13 +59,19 @@ func UpdateProductCategory(c *gin.Context) {
 	}
 
 	sqlStatement := `UPDATE product_categories SET category_code = $1, name = $2 WHERE id = $3`
-	_, err := db.Conn.Exec(sqlStatement, category.CategoryCode, category.Name, id)
+	_, err := db.Conn.Exec(sqlStatement, category.CategoryCode, category.Name, idStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新產品類別失敗: " + err.Error()})
 		return
 	}
 
-	category.ID = // (需要轉換 id string to int)
+	// 【修正】將字串 ID 轉換為整數，並回傳給前端
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "無效的 ID 格式"})
+		return
+	}
+	category.ID = id
 	c.JSON(http.StatusOK, category)
 }
 
