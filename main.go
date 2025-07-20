@@ -1,4 +1,4 @@
-// fastener-api-main/main.go (最終修正版)
+// fastener-api-main/main.go
 package main
 
 import (
@@ -26,7 +26,6 @@ func main() {
 	r := gin.Default()
 
 	// 設定 CORS 中介軟體
-	// *** 修正點：已將此區塊中所有看不見的特殊空白字元替換為標準空格 ***
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://fastener-frontend-v2.zeabur.app", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -38,38 +37,51 @@ func main() {
 
 	// --- 路由設定 ---
 
-	// 健康檢查路由
+	// 健康檢查路由 (不需驗證)
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "OK"})
 	})
 
-	// 登入路由 - 這是關鍵！
-	r.POST("/api/login", routes.LoginHandler(db.Conn))
-
-	// --- 需要 JWT 驗證的路由群組 ---
-
-	// 基礎資料管理 API 群組
-	definitions := r.Group("/api/definitions")
-	definitions.Use(middleware.JWTAuthMiddleware())
+	// 建立 /api 路由群組
+	api := r.Group("/api")
 	{
-		companies := definitions.Group("/companies")
+		// 登入路由 (不需驗證)
+		api.POST("/login", routes.LoginHandler(db.Conn))
+
+		// --- 基礎資料管理 API 群組 (需要 JWT 驗證) ---
+		definitions := api.Group("/definitions")
+		definitions.Use(middleware.JWTAuthMiddleware())
 		{
-			companies.POST("", handler.CreateCompany)
-			companies.GET("", handler.GetCompanies)
-			companies.GET("/:id", handler.GetCompanyByID)
-			companies.PUT("/:id", handler.UpdateCompany)
-			companies.DELETE("/:id", handler.DeleteCompany)
-		}
-	}
+			// 公司管理的路由
+			companies := definitions.Group("/companies")
+			{
+				companies.POST("", handler.CreateCompany)
+				companies.GET("", handler.GetCompanies)
+				companies.GET("/:id", handler.GetCompanyByID)
+				companies.PUT("/:id", handler.UpdateCompany)
+				companies.DELETE("/:id", handler.DeleteCompany)
+			}
 
-	// 帳號管理 API 群組
-	accounts := r.Group("/api/manage-accounts")
-	accounts.Use(middleware.JWTAuthMiddleware())
-	{
-		accounts.GET("", handler.GetAccounts)
-		accounts.POST("", handler.CreateAccount)
-		accounts.PUT("/:id", handler.UpdateAccount)
-		accounts.DELETE("/:id", handler.DeleteAccount)
+			// 客戶管理的路由 (新增)
+			customers := definitions.Group("/customers")
+			{
+				customers.POST("", handler.CreateCustomer)
+				customers.GET("", handler.GetCustomers)
+				customers.GET("/:id", handler.GetCustomerByID)
+				customers.PUT("/:id", handler.UpdateCustomer)
+				customers.DELETE("/:id", handler.DeleteCustomer)
+			}
+		}
+
+		// --- 帳號管理 API 群組 (需要 JWT 驗證) ---
+		accounts := api.Group("/manage-accounts")
+		accounts.Use(middleware.JWTAuthMiddleware())
+		{
+			accounts.GET("", handler.GetAccounts)
+			accounts.POST("", handler.CreateAccount)
+			accounts.PUT("/:id", handler.UpdateAccount)
+			accounts.DELETE("/:id", handler.DeleteAccount)
+		}
 	}
 
 	// --- 啟動伺服器 ---
@@ -80,5 +92,6 @@ func main() {
 
 	log.Printf("🚀 Server starting on port %s", port)
 	
+	// 使用 log.Fatal 可以在伺服器啟動失敗時記錄錯誤並退出程式
 	log.Fatal(r.Run(":" + port))
 }
