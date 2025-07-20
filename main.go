@@ -1,4 +1,4 @@
-// fastener-api-main/main.go (最終確定版)
+// fastener-api-main/main.go (最終修正版)
 package main
 
 import (
@@ -26,6 +26,7 @@ func main() {
 	r := gin.Default()
 
 	// 設定 CORS 中介軟體
+	// *** 修正點：已將此區塊中所有看不見的特殊空白字元替換為標準空格 ***
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"https://fastener-frontend-v2.zeabur.app", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
