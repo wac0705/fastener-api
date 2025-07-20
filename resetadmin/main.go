@@ -14,11 +14,12 @@ import (
 )
 
 func main() {
-	// 1. 從環境變數讀取資料庫連線 URL
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
-		log.Fatal("錯誤：請先設定 DATABASE_URL 環境變數。\n您可以在 Zeabur 的 fastener-api 服務設定中找到它。")
-	}
+	// 1. 直接在此處設定您的資料庫連線 URL
+	// 警告：直接將連線字串寫在程式碼中會有安全風險。
+	// 這個工具僅為一次性使用，請勿將此檔案提交到公開的 Git 儲存庫。
+	connStr := "postgres://root:NzW7lrhfHqt2aoe1MA64085jmpn93GZX@tpe0.clusters.zeabur.com:32072/postgres?sslmode=disable"
+	fmt.Println("已讀取資料庫連線位址。")
+
 
 	// 2. 連接到 PostgreSQL 資料庫
 	fmt.Println("正在連接到資料庫...")
