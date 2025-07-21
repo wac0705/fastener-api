@@ -1,4 +1,3 @@
-// fastener-api-main/handler/companies.go
 package handler
 
 import (
@@ -6,9 +5,7 @@ import (
 	"fastener-api/models"
 	"net/http"
 	"strconv"
-
-	// 【核心修正點】修正了 gin 的匯入路徑
-	"github.com/gin-gonic/gin" 
+	"github.com/gin-gonic/gin"
 )
 
 // --- 查詢所有公司 (以樹狀結構回傳) ---
@@ -20,13 +17,14 @@ func GetCompanies(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	companyMap := make(map[int]*models.Company)
+	companyMap := make(map[int64]*models.Company)
 	var allCompanies []*models.Company
 
 	for rows.Next() {
 		var company models.Company
+		// ParentID 是 *int64，Scan 支援 nil/數字
 		if err := rows.Scan(&company.ID, &company.Name, &company.ParentID, &company.CreatedAt, &company.UpdatedAt); err == nil {
-			node := company 
+			node := company
 			companyMap[node.ID] = &node
 			allCompanies = append(allCompanies, &node)
 		}
@@ -38,22 +36,19 @@ func GetCompanies(c *gin.Context) {
 
 	var rootCompanies []*models.Company
 	for _, company := range allCompanies {
-		if company.ParentID.Valid {
-			if parent, ok := companyMap[int(company.ParentID.Int64)]; ok {
+		if company.ParentID != nil {
+			if parent, ok := companyMap[*company.ParentID]; ok {
 				parent.Children = append(parent.Children, company)
 			}
 		} else {
 			rootCompanies = append(rootCompanies, company)
 		}
 	}
-
 	if rootCompanies == nil {
 		rootCompanies = make([]*models.Company, 0)
 	}
-
 	c.JSON(http.StatusOK, rootCompanies)
 }
-
 
 // --- 建立公司 (支援 parent_id) ---
 func CreateCompany(c *gin.Context) {
@@ -63,8 +58,8 @@ func CreateCompany(c *gin.Context) {
 		return
 	}
 
-	sqlStatement := `INSERT INTO companies (name, parent_id) VALUES ($1, $2) RETURNING id, created_at, updated_at`
-	err := db.Conn.QueryRow(sqlStatement, company.Name, company.ParentID).Scan(&company.ID, &company.CreatedAt, &company.UpdatedAt)
+	sqlStatement := `INSERT INTO companies (name, parent_id, currency, language) VALUES ($1, $2, $3, $4) RETURNING id, created_at, updated_at`
+	err := db.Conn.QueryRow(sqlStatement, company.Name, company.ParentID, company.Currency, company.Language).Scan(&company.ID, &company.CreatedAt, &company.UpdatedAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "建立公司失敗: " + err.Error()})
 		return
@@ -78,8 +73,8 @@ func GetCompanyByID(c *gin.Context) {
 	id := c.Param("id")
 	var company models.Company
 	err := db.Conn.QueryRow(
-		"SELECT id, name, parent_id, created_at, updated_at FROM companies WHERE id = $1", id,
-	).Scan(&company.ID, &company.Name, &company.ParentID, &company.CreatedAt, &company.UpdatedAt)
+		"SELECT id, name, parent_id, currency, language, created_at, updated_at FROM companies WHERE id = $1", id,
+	).Scan(&company.ID, &company.Name, &company.ParentID, &company.Currency, &company.Language, &company.CreatedAt, &company.UpdatedAt)
 	
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "找不到指定的公司"})
@@ -93,12 +88,12 @@ func UpdateCompany(c *gin.Context) {
 	idStr := c.Param("id")
 	var company models.Company
 	if err := c.ShouldBindJSON(&company); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的請求格式"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的請求格式: " + err.Error()})
 		return
 	}
 
-	sqlStatement := `UPDATE companies SET name = $1, parent_id = $2, updated_at = NOW() WHERE id = $3`
-	res, err := db.Conn.Exec(sqlStatement, company.Name, company.ParentID, idStr)
+	sqlStatement := `UPDATE companies SET name = $1, parent_id = $2, currency = $3, language = $4, updated_at = NOW() WHERE id = $5`
+	res, err := db.Conn.Exec(sqlStatement, company.Name, company.ParentID, company.Currency, company.Language, idStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新公司失敗: " + err.Error()})
 		return
