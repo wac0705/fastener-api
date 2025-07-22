@@ -1,4 +1,3 @@
-// fastener-api-main/main.go
 package main
 
 import (
@@ -70,6 +69,8 @@ func main() {
 				customers.GET("/:id", handler.GetCustomerByID)
 				customers.PUT("/:id", handler.UpdateCustomer)
 				customers.DELETE("/:id", handler.DeleteCustomer)
+				// 🟢 新增這一行即可
+				customers.GET("/code/:code", handler.GetCustomerByCode)
 			}
 
 			// 【修正點】補上產品類別管理的路由
@@ -101,6 +102,5 @@ func main() {
 
 	log.Printf("🚀 Server starting on port %s", port)
 	
-	// 使用 log.Fatal 可以在伺服器啟動失敗時記錄錯誤並退出程式
 	log.Fatal(r.Run(":" + port))
 }
