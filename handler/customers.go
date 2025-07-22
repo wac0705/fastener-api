@@ -1,4 +1,3 @@
-// fastener-api-main/handler/customers.go
 package handler
 
 import (
@@ -148,4 +147,50 @@ func DeleteCustomer(c *gin.Context) {
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "客戶刪除成功"})
+}
+
+// --- 依 group_customer_code 查詢客戶 (支援 /code/:code) ---
+func GetCustomerByCode(c *gin.Context) {
+	code := c.Param("code")
+	var customer models.Customer
+	var remarks sql.NullString
+
+	// 1. 查詢客戶主檔
+	err := db.Conn.QueryRow(
+		`SELECT id, group_customer_code, group_customer_name, remarks, created_at, updated_at FROM customers WHERE group_customer_code = $1`,
+		code,
+	).Scan(&customer.ID, &customer.GroupCustomerCode, &customer.GroupCustomerName, &remarks, &customer.CreatedAt, &customer.UpdatedAt)
+	
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "找不到指定的客戶"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢客戶主檔失敗: " + err.Error()})
+		return
+	}
+	customer.Remarks = remarks.String
+
+	// 2. 查詢該客戶的所有交易條件
+	rows, err := db.Conn.Query(`
+		SELECT id, customer_id, company_id, incoterm, currency_code 
+		FROM customer_transaction_terms 
+		WHERE customer_id = $1
+	`, customer.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢交易條件失敗: " + err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var terms []models.CustomerTransactionTerm
+	for rows.Next() {
+		var term models.CustomerTransactionTerm
+		if err := rows.Scan(&term.ID, &term.CustomerID, &term.CompanyID, &term.Incoterm, &term.CurrencyCode); err == nil {
+			terms = append(terms, term)
+		}
+	}
+	customer.TransactionTerms = terms
+
+	c.JSON(http.StatusOK, customer)
 }
