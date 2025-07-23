@@ -130,11 +130,11 @@ func CreateAccount(c *gin.Context) {
 	}
 
 	user := models.User{
-		Username:  req.Username,
-		Password:  string(hashed),
-		RoleID:    roleID,
-		CompanyID: uint(req.CompanyID),
-		IsActive:  true,
+		Username:     req.Username,
+		PasswordHash: string(hashed), // ★ 用正確欄位
+		RoleID:       roleID,
+		CompanyID:    uint(req.CompanyID),
+		IsActive:     true,
 	}
 	if err := db.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "新增帳號失敗: " + err.Error()})
