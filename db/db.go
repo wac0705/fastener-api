@@ -1,33 +1,27 @@
 package db
 
 import (
-	"database/sql"
 	"log"
 	"os"
 
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-var Conn *sql.DB
+var DB *gorm.DB
 
 func Init() {
-	var err error
-
-	// 從環境變數讀取 DATABASE_URL
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
+	// 從環境變數取得連線字串
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
 		log.Fatal("❌ 缺少 DATABASE_URL 環境變數")
 	}
 
-	Conn, err = sql.Open("postgres", connStr)
+	var err error
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("❌ 資料庫開啟失敗:", err)
+		log.Fatal("❌ GORM 連線失敗:", err)
 	}
 
-	err = Conn.Ping()
-	if err != nil {
-		log.Fatal("❌ 資料庫無法 Ping:", err)
-	}
-
-	log.Println("✅ 成功連接 PostgreSQL")
+	log.Println("✅ 成功連接 PostgreSQL (GORM)")
 }
