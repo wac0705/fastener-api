@@ -1,33 +1,30 @@
-// fastener-api-main/models/product_definition.go
 package models
 
-import "database/sql"
-
-// ProductCategory 定義了產品主類別的結構
+// 產品主類別
 type ProductCategory struct {
-	ID           int    `json:"id"`
+	ID           uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	CategoryCode string `json:"category_code" binding:"required"`
 	Name         string `json:"name" binding:"required"`
 }
 
-// ProductShape 定義了產品形狀的結構
+// 產品形狀
 type ProductShape struct {
-	ID        int    `json:"id"`
+	ID        uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	ShapeCode string `json:"shape_code" binding:"required"`
 	Name      string `json:"name" binding:"required"`
 }
 
-// ProductFunction 定義了產品功能的結構
+// 產品功能
 type ProductFunction struct {
-	ID           int    `json:"id"`
+	ID           uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	FunctionCode string `json:"function_code" binding:"required"`
 	Name         string `json:"name" binding:"required"`
 }
 
-// ProductSpecification 定義了產品規格的結構
+// 產品規格
 type ProductSpecification struct {
-	ID       int            `json:"id"`
-	SpecCode string         `json:"spec_code" binding:"required"`
-	Name     string         `json:"name" binding:"required"`
-	ParentID sql.NullInt64  `json:"parent_id"` // 使用 sql.NullInt64 來處理可能為 NULL 的 parent_id
+	ID       uint   `json:"id" gorm:"primaryKey;autoIncrement"`
+	SpecCode string `json:"spec_code" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+	ParentID *uint  `json:"parent_id"` // null or reference another spec
 }
