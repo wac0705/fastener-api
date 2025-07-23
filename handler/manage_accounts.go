@@ -47,7 +47,6 @@ func GetAccounts(c *gin.Context) {
 	var err error
 
 	if role == "superadmin" {
-		// 查全部
 		rows, err = db.Conn.Query(`
 			SELECT u.id, u.username, r.name as role, u.is_active, u.tenant_id, c.name as company_name
 			FROM users u
@@ -56,12 +55,15 @@ func GetAccounts(c *gin.Context) {
 			ORDER BY u.id
 		`)
 	} else if role == "company_admin" {
-		// 只查自己公司與子公司（假設子公司ID已知，需進階可用遞迴CTE查所有下層）
 		subCompanyIDs := getDescendantCompanyIDs(companyID)
-		placeholder := strings.Repeat("?,", len(subCompanyIDs))
-		placeholder = strings.TrimRight(placeholder, ",")
+		if len(subCompanyIDs) == 0 {
+			c.JSON(http.StatusOK, []models.UserAccount{})
+			return
+		}
+		placeholders := make([]string, len(subCompanyIDs))
 		args := make([]interface{}, len(subCompanyIDs))
 		for i, v := range subCompanyIDs {
+			placeholders[i] = "?"
 			args[i] = v
 		}
 		query := `
@@ -69,7 +71,7 @@ func GetAccounts(c *gin.Context) {
 			FROM users u
 			LEFT JOIN roles r ON u.role_id = r.id
 			LEFT JOIN companies c ON u.tenant_id = c.id
-			WHERE u.tenant_id IN (` + placeholder + `)
+			WHERE u.tenant_id IN (` + strings.Join(placeholders, ",") + `)
 			ORDER BY u.id
 		`
 		rows, err = db.Conn.Query(query, args...)
@@ -108,7 +110,6 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	// company_admin 只能建立自己或子公司帳號
 	if role == "company_admin" {
 		allowedIDs := getDescendantCompanyIDs(companyID)
 		isAllowed := false
@@ -169,7 +170,6 @@ func UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	// company_admin 只能更新自己或子公司帳號
 	if role == "company_admin" {
 		allowedIDs := getDescendantCompanyIDs(companyID)
 		isAllowed := false
@@ -222,7 +222,6 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	// company_admin 只能刪自己公司/子公司帳號
-	// 這裡請補一個查詢該帳號的 tenant_id，並比對可控公司ID
 	if role == "company_admin" {
 		var targetCompanyID int
 		err := db.Conn.QueryRow("SELECT tenant_id FROM users WHERE id = $1", id).Scan(&targetCompanyID)
@@ -252,9 +251,31 @@ func DeleteAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "帳號刪除成功"})
 }
 
-// ==== 這個 function 請改成用你自己的公司遞迴查詢方式 ====
+// ==== 這個 function 用於查詢自己+所有下層公司ID ====
 func getDescendantCompanyIDs(companyID int) []int {
-	// TODO: 實作真正的遞迴查詢資料庫
-	// 目前只是自己公司
-	return []int{companyID}
+	var ids []int
+	query := `
+		WITH RECURSIVE company_tree AS (
+			SELECT id FROM companies WHERE id = $1
+			UNION ALL
+			SELECT c.id FROM companies c
+			JOIN company_tree t ON c.parent_id = t.id
+		)
+		SELECT id FROM company_tree;
+	`
+	rows, err := db.Conn.Query(query, companyID)
+	if err != nil {
+		return []int{companyID}
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		ids = append(ids, companyID)
+	}
+	return ids
 }
