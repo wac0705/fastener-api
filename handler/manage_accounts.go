@@ -1,36 +1,38 @@
-// fastener-api-main/handler/manage_accounts.go
 package handler
 
 import (
 	"database/sql"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 
-	// 修正引用路徑
 	"fastener-api/db"
 	"fastener-api/models"
 )
 
-// permissionDenied 是一個輔助函式，用於回傳權限不足的錯誤
-func permissionDenied(c *gin.Context) {
-	c.JSON(http.StatusForbidden, gin.H{"error": "權限不足"})
+// 權限驗證（僅 admin 可進行）
+func checkAdminPermission(c *gin.Context) bool {
+	userRole, exists := c.Get("role")
+	if !exists || userRole != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "權限不足"})
+		return false
+	}
+	return true
 }
 
-// GetAccounts 處理獲取所有帳號的請求
+// 查詢帳號列表
 func GetAccounts(c *gin.Context) {
-	// 從中介軟體取得角色資訊
-	userRole, _ := c.Get("role")
-	if userRole != "admin" {
-		permissionDenied(c)
+	if !checkAdminPermission(c) {
 		return
 	}
 
 	rows, err := db.Conn.Query(`
-		SELECT u.id, u.username, r.name as role, u.is_active 
-		FROM users u 
-		LEFT JOIN roles r ON u.role_id = r.id 
+		SELECT u.id, u.username, r.name as role, u.is_active, u.tenant_id, c.name as company_name
+		FROM users u
+		LEFT JOIN roles r ON u.role_id = r.id
+		LEFT JOIN companies c ON u.tenant_id = c.id
 		ORDER BY u.id
 	`)
 	if err != nil {
@@ -42,25 +44,29 @@ func GetAccounts(c *gin.Context) {
 	var accounts []models.UserAccount
 	for rows.Next() {
 		var acc models.UserAccount
-		if err := rows.Scan(&acc.ID, &acc.Username, &acc.Role, &acc.IsActive); err == nil {
+		// 新增 company_id、company_name 欄位
+		if err := rows.Scan(&acc.ID, &acc.Username, &acc.Role, &acc.IsActive, &acc.CompanyID, &acc.CompanyName); err == nil {
 			accounts = append(accounts, acc)
 		}
 	}
-
 	c.JSON(http.StatusOK, accounts)
 }
 
-// CreateAccount 處理新增帳號的請求
+// 新增帳號
 func CreateAccount(c *gin.Context) {
-	userRole, _ := c.Get("role")
-	if userRole != "admin" {
-		permissionDenied(c)
+	if !checkAdminPermission(c) {
 		return
 	}
 
 	var req models.CreateAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的請求格式"})
+		return
+	}
+
+	// 必填檢查
+	if req.Username == "" || req.Password == "" || req.Role == "" || req.CompanyID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "所有欄位皆為必填"})
 		return
 	}
 
@@ -71,7 +77,7 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	// 根據角色名稱找到 role_id
+	// 找 role_id
 	var roleID int
 	err = db.Conn.QueryRow("SELECT id FROM roles WHERE name = $1", req.Role).Scan(&roleID)
 	if err != nil {
@@ -83,12 +89,11 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	// 插入新使用者到 users 資料表
+	// 插入新使用者
 	_, err = db.Conn.Exec(`
-		INSERT INTO users (username, password_hash, role_id, is_active)
-		VALUES ($1, $2, $3, true)
-	`, req.Username, string(hashed), roleID)
-
+		INSERT INTO users (username, password_hash, role_id, tenant_id, is_active)
+		VALUES ($1, $2, $3, $4, true)
+	`, req.Username, string(hashed), roleID, req.CompanyID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "新增帳號失敗: " + err.Error()})
 		return
@@ -97,11 +102,9 @@ func CreateAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "帳號建立成功"})
 }
 
-// UpdateAccount 處理更新帳號的請求
+// 修改帳號
 func UpdateAccount(c *gin.Context) {
-	userRole, _ := c.Get("role")
-	if userRole != "admin" {
-		permissionDenied(c)
+	if !checkAdminPermission(c) {
 		return
 	}
 
@@ -112,7 +115,7 @@ func UpdateAccount(c *gin.Context) {
 		return
 	}
 
-	// 根據角色名稱找到 role_id
+	// role 必填
 	var roleID int
 	err := db.Conn.QueryRow("SELECT id FROM roles WHERE name = $1", req.Role).Scan(&roleID)
 	if err != nil {
@@ -124,10 +127,10 @@ func UpdateAccount(c *gin.Context) {
 		return
 	}
 
+	// 允許更新公司
 	_, err = db.Conn.Exec(`
-		UPDATE users SET role_id = $1, is_active = $2 WHERE id = $3
-	`, roleID, req.IsActive, id)
-
+		UPDATE users SET role_id = $1, is_active = $2, tenant_id = $3 WHERE id = $4
+	`, roleID, req.IsActive, req.CompanyID, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新帳號失敗: " + err.Error()})
 		return
@@ -136,19 +139,21 @@ func UpdateAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "帳號更新成功"})
 }
 
-// DeleteAccount 處理刪除帳號的請求
+// 刪除帳號
 func DeleteAccount(c *gin.Context) {
-	userRole, _ := c.Get("role")
-	if userRole != "admin" {
-		permissionDenied(c)
+	if !checkAdminPermission(c) {
 		return
 	}
 
 	id := c.Param("id")
-
-	// 🛑 保護措施：不允許刪除 ID 為 1 的帳號 (通常是超級管理員)
+	// 防呆: 不可刪掉 ID=1 的主帳號
 	if id == "1" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "無法刪除主要的管理員帳號"})
+		return
+	}
+	// 確認 id 有轉成數字
+	if _, err := strconv.Atoi(id); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的帳號 ID"})
 		return
 	}
 
@@ -157,6 +162,5 @@ func DeleteAccount(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "刪除帳號失敗: " + err.Error()})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "帳號刪除成功"})
 }
