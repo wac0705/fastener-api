@@ -12,8 +12,9 @@ import (
 
 // Claims 定義了 JWT token 中儲存的資訊
 type Claims struct {
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	Username  string `json:"username"`
+	Role      string `json:"role"`
+	CompanyID int    `json:"company_id"`
 	jwt.RegisteredClaims
 }
 
@@ -43,7 +44,6 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil {
-			// v5 正確過期判斷
 			if errors.Is(err, jwt.ErrTokenExpired) {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 已過期"})
 			} else {
@@ -62,6 +62,7 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		// 將驗證後的使用者資訊存入 context，供後續 handler 使用
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
+		c.Set("company_id", claims.CompanyID)
 
 		c.Next()
 	}
