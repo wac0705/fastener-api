@@ -43,9 +43,8 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 		})
 
 		if err != nil {
-			// 區分過期和其他錯誤
-			var verr *jwt.ValidationError
-			if errors.As(err, &verr) && verr.Errors&jwt.ValidationErrorExpired != 0 {
+			// v5 正確過期判斷
+			if errors.Is(err, jwt.ErrTokenExpired) {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 已過期"})
 			} else {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "無效的 Token"})
