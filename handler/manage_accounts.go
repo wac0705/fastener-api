@@ -221,7 +221,6 @@ func DeleteAccount(c *gin.Context) {
 		return
 	}
 
-	// company_admin 只能刪自己公司/子公司帳號
 	if role == "company_admin" {
 		var targetCompanyID int
 		err := db.Conn.QueryRow("SELECT tenant_id FROM users WHERE id = $1", id).Scan(&targetCompanyID)
@@ -249,6 +248,55 @@ func DeleteAccount(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "帳號刪除成功"})
+}
+
+// 重設帳號密碼（新增）
+func ResetPassword(c *gin.Context) {
+	role, companyID, ok := getRoleAndCompanyID(c)
+	if !ok || (role != "superadmin" && role != "company_admin") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "權限不足"})
+		return
+	}
+	id := c.Param("id")
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.Password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "請輸入新密碼"})
+		return
+	}
+	// company_admin 只能改自己公司/子公司帳號
+	if role == "company_admin" {
+		var targetCompanyID int
+		err := db.Conn.QueryRow("SELECT tenant_id FROM users WHERE id = $1", id).Scan(&targetCompanyID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢帳號公司失敗"})
+			return
+		}
+		allowedIDs := getDescendantCompanyIDs(companyID)
+		isAllowed := false
+		for _, allowed := range allowedIDs {
+			if allowed == targetCompanyID {
+				isAllowed = true
+				break
+			}
+		}
+		if !isAllowed {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無法修改此公司帳號密碼"})
+			return
+		}
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密碼加密失敗"})
+		return
+	}
+	_, err = db.Conn.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, string(hashed), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "密碼更新失敗"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "密碼已重設"})
 }
 
 // ==== 這個 function 用於查詢自己+所有下層公司ID ====
