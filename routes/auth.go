@@ -60,8 +60,8 @@ func LoginHandler(db *gorm.DB) gin.HandlerFunc {
 		var roleName string
 		db.Raw("SELECT name FROM roles WHERE id = ?", user.RoleID).Scan(&roleName)
 
-		// 驗證密碼
-		if bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
+		// 驗證密碼 (用 PasswordHash)
+		if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
 			log.Printf("⚠️ 登入失敗: 密碼錯誤 - %s", req.Username)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "帳號或密碼錯誤"})
 			return
