@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"database/sql"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,25 +13,28 @@ import (
 )
 
 // 權限驗證（多層級管理員分權）
-func getRoleAndCompanyID(c *gin.Context) (string, int, bool) {
+func getRoleAndCompanyID(c *gin.Context) (string, uint, bool) {
 	role, exists := c.Get("role")
 	companyID, exists2 := c.Get("company_id")
 	if !exists || !exists2 {
 		return "", 0, false
 	}
 	roleStr, _ := role.(string)
-	companyIDInt := 0
+	var companyIDUint uint
 	switch v := companyID.(type) {
 	case int:
-		companyIDInt = v
+		companyIDUint = uint(v)
 	case int64:
-		companyIDInt = int(v)
+		companyIDUint = uint(v)
 	case float64:
-		companyIDInt = int(v)
+		companyIDUint = uint(v)
+	case uint:
+		companyIDUint = v
 	case string:
-		companyIDInt, _ = strconv.Atoi(v)
+		id, _ := strconv.Atoi(v)
+		companyIDUint = uint(id)
 	}
-	return roleStr, companyIDInt, true
+	return roleStr, companyIDUint, true
 }
 
 // 查詢帳號列表
@@ -43,55 +45,40 @@ func GetAccounts(c *gin.Context) {
 		return
 	}
 
-	var rows *sql.Rows
-	var err error
+	var accounts []models.UserAccount
 
 	if role == "superadmin" {
-		rows, err = db.Conn.Query(`
-			SELECT u.id, u.username, r.name as role, u.is_active, u.tenant_id, c.name as company_name
+		// 查全部
+		db.DB.Raw(`
+			SELECT u.id, u.username, r.name as role, u.is_active, u.tenant_id as company_id, c.name as company_name
 			FROM users u
 			LEFT JOIN roles r ON u.role_id = r.id
 			LEFT JOIN companies c ON u.tenant_id = c.id
 			ORDER BY u.id
-		`)
+		`).Scan(&accounts)
 	} else if role == "company_admin" {
 		subCompanyIDs := getDescendantCompanyIDs(companyID)
 		if len(subCompanyIDs) == 0 {
 			c.JSON(http.StatusOK, []models.UserAccount{})
 			return
 		}
-		placeholders := make([]string, len(subCompanyIDs))
-		args := make([]interface{}, len(subCompanyIDs))
-		for i, v := range subCompanyIDs {
-			placeholders[i] = "?"
-			args[i] = v
+		var idStrings []string
+		for _, v := range subCompanyIDs {
+			idStrings = append(idStrings, strconv.Itoa(int(v)))
 		}
+		placeholders := strings.Join(idStrings, ",")
 		query := `
-			SELECT u.id, u.username, r.name as role, u.is_active, u.tenant_id, c.name as company_name
+			SELECT u.id, u.username, r.name as role, u.is_active, u.tenant_id as company_id, c.name as company_name
 			FROM users u
 			LEFT JOIN roles r ON u.role_id = r.id
 			LEFT JOIN companies c ON u.tenant_id = c.id
-			WHERE u.tenant_id IN (` + strings.Join(placeholders, ",") + `)
+			WHERE u.tenant_id IN (` + placeholders + `)
 			ORDER BY u.id
 		`
-		rows, err = db.Conn.Query(query, args...)
+		db.DB.Raw(query).Scan(&accounts)
 	} else {
 		c.JSON(http.StatusForbidden, gin.H{"error": "權限不足"})
 		return
-	}
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "資料庫查詢失敗: " + err.Error()})
-		return
-	}
-	defer rows.Close()
-
-	var accounts []models.UserAccount
-	for rows.Next() {
-		var acc models.UserAccount
-		if err := rows.Scan(&acc.ID, &acc.Username, &acc.Role, &acc.IsActive, &acc.CompanyID, &acc.CompanyName); err == nil {
-			accounts = append(accounts, acc)
-		}
 	}
 	c.JSON(http.StatusOK, accounts)
 }
@@ -114,7 +101,7 @@ func CreateAccount(c *gin.Context) {
 		allowedIDs := getDescendantCompanyIDs(companyID)
 		isAllowed := false
 		for _, id := range allowedIDs {
-			if id == req.CompanyID {
+			if id == uint(req.CompanyID) {
 				isAllowed = true
 				break
 			}
@@ -136,18 +123,20 @@ func CreateAccount(c *gin.Context) {
 		return
 	}
 
-	var roleID int
-	err = db.Conn.QueryRow("SELECT id FROM roles WHERE name = $1", req.Role).Scan(&roleID)
-	if err != nil {
+	var roleID uint
+	if err := db.DB.Raw("SELECT id FROM roles WHERE name = ?", req.Role).Scan(&roleID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢角色失敗: " + err.Error()})
 		return
 	}
 
-	_, err = db.Conn.Exec(`
-		INSERT INTO users (username, password_hash, role_id, tenant_id, is_active)
-		VALUES ($1, $2, $3, $4, true)
-	`, req.Username, string(hashed), roleID, req.CompanyID)
-	if err != nil {
+	user := models.User{
+		Username:  req.Username,
+		Password:  string(hashed),
+		RoleID:    roleID,
+		CompanyID: uint(req.CompanyID),
+		IsActive:  true,
+	}
+	if err := db.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "新增帳號失敗: " + err.Error()})
 		return
 	}
@@ -174,7 +163,7 @@ func UpdateAccount(c *gin.Context) {
 		allowedIDs := getDescendantCompanyIDs(companyID)
 		isAllowed := false
 		for _, id := range allowedIDs {
-			if id == req.CompanyID {
+			if id == uint(req.CompanyID) {
 				isAllowed = true
 				break
 			}
@@ -185,17 +174,19 @@ func UpdateAccount(c *gin.Context) {
 		}
 	}
 
-	var roleID int
-	err := db.Conn.QueryRow("SELECT id FROM roles WHERE name = $1", req.Role).Scan(&roleID)
-	if err != nil {
+	var roleID uint
+	if err := db.DB.Raw("SELECT id FROM roles WHERE name = ?", req.Role).Scan(&roleID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢角色失敗: " + err.Error()})
 		return
 	}
 
-	_, err = db.Conn.Exec(`
-		UPDATE users SET role_id = $1, is_active = $2, tenant_id = $3 WHERE id = $4
-	`, roleID, req.IsActive, req.CompanyID, id)
-	if err != nil {
+	if err := db.DB.Model(&models.User{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"role_id":   roleID,
+			"is_active": req.IsActive,
+			"tenant_id": req.CompanyID,
+		}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新帳號失敗: " + err.Error()})
 		return
 	}
@@ -222,9 +213,8 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	if role == "company_admin" {
-		var targetCompanyID int
-		err := db.Conn.QueryRow("SELECT tenant_id FROM users WHERE id = $1", id).Scan(&targetCompanyID)
-		if err != nil {
+		var targetCompanyID uint
+		if err := db.DB.Raw("SELECT tenant_id FROM users WHERE id = ?", id).Scan(&targetCompanyID).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢帳號公司失敗"})
 			return
 		}
@@ -242,15 +232,14 @@ func DeleteAccount(c *gin.Context) {
 		}
 	}
 
-	_, err := db.Conn.Exec(`DELETE FROM users WHERE id = $1`, id)
-	if err != nil {
+	if err := db.DB.Delete(&models.User{}, id).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "刪除帳號失敗: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "帳號刪除成功"})
 }
 
-// 重設帳號密碼（新增）
+// 重設帳號密碼
 func ResetPassword(c *gin.Context) {
 	role, companyID, ok := getRoleAndCompanyID(c)
 	if !ok || (role != "superadmin" && role != "company_admin") {
@@ -267,9 +256,8 @@ func ResetPassword(c *gin.Context) {
 	}
 	// company_admin 只能改自己公司/子公司帳號
 	if role == "company_admin" {
-		var targetCompanyID int
-		err := db.Conn.QueryRow("SELECT tenant_id FROM users WHERE id = $1", id).Scan(&targetCompanyID)
-		if err != nil {
+		var targetCompanyID uint
+		if err := db.DB.Raw("SELECT tenant_id FROM users WHERE id = ?", id).Scan(&targetCompanyID).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢帳號公司失敗"})
 			return
 		}
@@ -291,33 +279,32 @@ func ResetPassword(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密碼加密失敗"})
 		return
 	}
-	_, err = db.Conn.Exec(`UPDATE users SET password_hash=$1 WHERE id=$2`, string(hashed), id)
-	if err != nil {
+	if err := db.DB.Model(&models.User{}).Where("id = ?", id).
+		Update("password_hash", string(hashed)).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "密碼更新失敗"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "密碼已重設"})
 }
 
-// ==== 這個 function 用於查詢自己+所有下層公司ID ====
-func getDescendantCompanyIDs(companyID int) []int {
-	var ids []int
-	query := `
+// ==== 查詢自己+所有下層公司ID（支援 RECURSIVE，GORM Raw）====
+func getDescendantCompanyIDs(companyID uint) []uint {
+	var ids []uint
+	rows, err := db.DB.Raw(`
 		WITH RECURSIVE company_tree AS (
-			SELECT id FROM companies WHERE id = $1
+			SELECT id FROM companies WHERE id = ?
 			UNION ALL
 			SELECT c.id FROM companies c
 			JOIN company_tree t ON c.parent_id = t.id
 		)
-		SELECT id FROM company_tree;
-	`
-	rows, err := db.Conn.Query(query, companyID)
+		SELECT id FROM company_tree
+	`, companyID).Rows()
 	if err != nil {
-		return []int{companyID}
+		return []uint{companyID}
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var id int
+		var id uint
 		if err := rows.Scan(&id); err == nil {
 			ids = append(ids, id)
 		}
