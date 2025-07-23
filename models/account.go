@@ -4,14 +4,14 @@ import "time"
 
 // GORM ORM 用的 User struct，對應 users 資料表
 type User struct {
-	ID        uint      `json:"id" gorm:"primaryKey;autoIncrement"`
-	Username  string    `json:"username"`
-	Password  string    `json:"password"`      // 密碼雜湊
-	RoleID    uint      `json:"role_id"`
-	CompanyID uint      `json:"company_id"`    // tenant_id
-	IsActive  bool      `json:"is_active"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           uint      `json:"id" gorm:"primaryKey;autoIncrement"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"password_hash"` // ★ 必須對應資料庫欄位
+	RoleID       uint      `json:"role_id"`
+	CompanyID    uint      `json:"company_id"`    // tenant_id
+	IsActive     bool      `json:"is_active"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // 用於 API 回傳給前端的帳號資訊
