@@ -55,13 +55,14 @@ func UpdateCustomer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "無效的請求格式: " + err.Error()})
 		return
 	}
-	customer.ID, _ = strconv.ParseUint(id, 10, 64)
-	if err := db.DB.Model(&models.Customer{}).Where("id = ?", id).Updates(customer).Error; err != nil {
+	u64, _ := strconv.ParseUint(id, 10, 64)
+	customer.ID = uint(u64)
+	if err := db.DB.Model(&models.Customer{}).Where("id = ?", customer.ID).Updates(customer).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新客戶失敗: " + err.Error()})
 		return
 	}
 	// 查回更新後結果
-	db.DB.First(&customer, id)
+	db.DB.First(&customer, customer.ID)
 	c.JSON(http.StatusOK, customer)
 }
 
