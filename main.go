@@ -90,7 +90,26 @@ func main() {
 			accounts.POST("", handler.CreateAccount)
 			accounts.PUT("/:id", handler.UpdateAccount)
 			accounts.DELETE("/:id", handler.DeleteAccount)
-			accounts.PUT("/:id/reset-password", handler.ResetPassword) // ★ 新增這一行
+			accounts.PUT("/:id/reset-password", handler.ResetPassword)
+		}
+
+		// --- Menu (功能頁) API 群組 (需要 JWT 驗證) ---
+		menus := api.Group("/menus")
+		menus.Use(middleware.JWTAuthMiddleware())
+		{
+			menus.GET("", handler.GetMenus)
+			menus.POST("", handler.CreateMenu)
+			menus.PUT("/:id", handler.UpdateMenu)
+			menus.DELETE("/:id", handler.DeleteMenu)
+		}
+
+		// --- 角色分配功能頁 (Role-Menu Relations) API 群組 (需要 JWT 驗證) ---
+		roleMenus := api.Group("/role-menus")
+		roleMenus.Use(middleware.JWTAuthMiddleware())
+		{
+			roleMenus.GET("", handler.GetRoleMenus)
+			roleMenus.POST("", handler.UpdateRoleMenus)
+			roleMenus.DELETE("", handler.DeleteRoleMenu)
 		}
 	}
 
