@@ -10,6 +10,7 @@ import (
 	"fastener-api/handler"
 	"fastener-api/middleware"
 	"fastener-api/routes"
+	"fastener-api/models"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -17,9 +18,19 @@ import (
 )
 
 func main() {
-	// 初始化資料庫連線
+	// 初始化 GORM 資料庫連線
 	db.Init()
-	defer db.Conn.Close()
+
+	// ===== 新增：自動 migrate (表結構同步) =====
+	err := db.DB.AutoMigrate(
+		&models.Menu{},
+		&models.RoleMenuRelation{},
+		// 若有其他 models 也可加進來
+	)
+	if err != nil {
+		log.Fatal("❌ GORM AutoMigrate 錯誤:", err)
+	}
+	// ====== End migrate =====
 
 	// 建立 Gin 引擎
 	r := gin.Default()
@@ -45,7 +56,7 @@ func main() {
 	api := r.Group("/api")
 	{
 		// 登入路由 (不需驗證)
-		api.POST("/login", routes.LoginHandler(db.Conn))
+		api.POST("/login", routes.LoginHandler(db.DB)) // ⚠️ 改成 db.DB (GORM)
 
 		// --- 基礎資料管理 API 群組 (需要 JWT 驗證) ---
 		definitions := api.Group("/definitions")
