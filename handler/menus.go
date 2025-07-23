@@ -1,14 +1,14 @@
-// handler/menus.go
 package handler
 
 import (
     "net/http"
     "strconv"
     "github.com/gin-gonic/gin"
-    "fastener-api-main/db"
-    "fastener-api-main/models"
+    "fastener-api/db"
+    "fastener-api/models"
 )
 
+// 取得所有 menu
 func GetMenus(c *gin.Context) {
     var menus []models.Menu
     if err := db.DB.Order("order_no asc").Find(&menus).Error; err != nil {
@@ -18,6 +18,7 @@ func GetMenus(c *gin.Context) {
     c.JSON(http.StatusOK, menus)
 }
 
+// 新增 menu
 func CreateMenu(c *gin.Context) {
     var menu models.Menu
     if err := c.ShouldBindJSON(&menu); err != nil {
@@ -31,6 +32,7 @@ func CreateMenu(c *gin.Context) {
     c.JSON(http.StatusOK, menu)
 }
 
+// 更新 menu
 func UpdateMenu(c *gin.Context) {
     id, _ := strconv.Atoi(c.Param("id"))
     var menu models.Menu
@@ -47,6 +49,7 @@ func UpdateMenu(c *gin.Context) {
     c.JSON(http.StatusOK, menu)
 }
 
+// 刪除 menu
 func DeleteMenu(c *gin.Context) {
     id, _ := strconv.Atoi(c.Param("id"))
     db.DB.Delete(&models.Menu{}, id)
