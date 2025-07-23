@@ -61,7 +61,7 @@ func main() {
 				companies.DELETE("/:id", handler.DeleteCompany)
 			}
 
-			// 【修正點】補上客戶管理的路由
+			// 客戶管理的路由
 			customers := definitions.Group("/customers")
 			{
 				customers.POST("", handler.CreateCustomer)
@@ -69,11 +69,10 @@ func main() {
 				customers.GET("/:id", handler.GetCustomerByID)
 				customers.PUT("/:id", handler.UpdateCustomer)
 				customers.DELETE("/:id", handler.DeleteCustomer)
-				// 🟢 新增這一行即可
 				customers.GET("/code/:code", handler.GetCustomerByCode)
 			}
 
-			// 【修正點】補上產品類別管理的路由
+			// 產品類別管理的路由
 			categories := definitions.Group("/product-categories")
 			{
 				categories.POST("", handler.CreateProductCategory)
@@ -91,6 +90,7 @@ func main() {
 			accounts.POST("", handler.CreateAccount)
 			accounts.PUT("/:id", handler.UpdateAccount)
 			accounts.DELETE("/:id", handler.DeleteAccount)
+			accounts.PUT("/:id/reset-password", handler.ResetPassword) // ★ 新增這一行
 		}
 	}
 
@@ -101,6 +101,5 @@ func main() {
 	}
 
 	log.Printf("🚀 Server starting on port %s", port)
-	
 	log.Fatal(r.Run(":" + port))
 }
