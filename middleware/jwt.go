@@ -1,7 +1,7 @@
-// fastener-api-main/middleware/jwt.go
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"strings"
@@ -42,7 +42,19 @@ func JWTAuthMiddleware() gin.HandlerFunc {
 			return jwtKey, nil
 		})
 
-		if err != nil || !token.Valid {
+		if err != nil {
+			// 區分過期和其他錯誤
+			var verr *jwt.ValidationError
+			if errors.As(err, &verr) && verr.Errors&jwt.ValidationErrorExpired != 0 {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token 已過期"})
+			} else {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "無效的 Token"})
+			}
+			c.Abort()
+			return
+		}
+
+		if !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "無效的 Token"})
 			c.Abort()
 			return
