@@ -25,7 +25,7 @@ func main() {
 	err := db.DB.AutoMigrate(
 		&models.Menu{},
 		&models.RoleMenuRelation{},
-		// 若有其他 models 也可加進來
+		&models.Role{}, // 新增 Role 自動 migrate（建議加）
 	)
 	if err != nil {
 		log.Fatal("❌ GORM AutoMigrate 錯誤:", err)
@@ -57,6 +57,9 @@ func main() {
 	{
 		// 登入路由 (不需驗證)
 		api.POST("/login", routes.LoginHandler(db.DB)) // ⚠️ 改成 db.DB (GORM)
+
+		// 新增 /api/roles 路由 (角色清單查詢)
+		api.GET("/roles", handler.GetRoles)
 
 		// --- 基礎資料管理 API 群組 (需要 JWT 驗證) ---
 		definitions := api.Group("/definitions")
