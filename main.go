@@ -4,135 +4,156 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"fastener-api/db"
 	"fastener-api/handler"
 	"fastener-api/middleware"
-	"fastener-api/routes"
 	"fastener-api/models"
+	"fastener-api/routes"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	_ "github.com/lib/pq" // a postgres driver
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// 初始化 GORM 資料庫連線
+	// 加載 .env 檔案
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("⚠️ 無法加載 .env 檔案 (可能在生產環境中)")
+	}
+
+	// 設置 Gin 模式
+	ginMode := os.Getenv("GIN_MODE")
+	if ginMode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		log.Println("🚧 Gin 運行在 Debug 模式，請在生產環境中設置 GIN_MODE=release")
+	}
+
+	// 初始化資料庫連接
 	db.Init()
 
-	// ===== 新增：自動 migrate (表結構同步) =====
-	err := db.DB.AutoMigrate(
+	// 自動遷移資料庫模型
+	// 確保所有需要的模型都在這裡
+	err = db.DB.AutoMigrate(
+		&models.User{},
+		&models.Role{},
+		&models.Company{},
+		&models.Customer{},
+		&models.CustomerTransactionTerm{},
+		&models.Inquiry{},
+		&models.InquiryItem{},
+		&models.Estimation{},
+		&models.Quotation{},
+		&models.Material{},
+		&models.Process{},
+		&models.Port{},
+		&models.LogisticsRule{},
+		&models.QuotationTemplate{},
+		&models.ProductCategory{},
+		&models.ProductShape{},
+		&models.ProductFunction{},
+		&models.ProductSpecification{},
+		&models.CategoryShapeRelation{},
+		&models.CategoryFunctionRelation{},
+		&models.ShapeSpecRelation{},
+		&models.FunctionSpecRelation{},
 		&models.Menu{},
-		&models.RoleMenuRelation{},
-		&models.Role{}, // 新增 Role 自動 migrate（建議加）
+		&models.RoleMenuRelation{}, // <-- 在這裡添加 RoleMenuRelation 模型
+		&models.Review{},
 	)
 	if err != nil {
-		log.Fatal("❌ GORM AutoMigrate 錯誤:", err)
+		log.Fatalf("❌ GORM AutoMigrate 錯誤:%v", err)
 	}
-	// ====== End migrate =====
+	log.Println("✅ 資料庫模型自動遷移完成")
 
-	// 建立 Gin 引擎
+	// 初始化 Gin 路由器
 	r := gin.Default()
 
-	// 設定 CORS 中介軟體
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"https://fastener-frontend-v2.zeabur.app", "http://localhost:3000"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Authorization", "Content-Type"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
-
-	// --- 路由設定 ---
-
-	// 健康檢查路由 (不需驗證)
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "OK"})
+	// CORS 配置 (允許所有來源，僅用於開發，生產環境請限制)
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true") // 如果需要支持憑證
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
 	})
 
-	// 建立 /api 路由群組
-	api := r.Group("/api")
+	// 註冊公共路由 (無需身份驗證)
+	routes.SetupAuthRoutes(r)
+
+	// 身份驗證中間件 (對所有受保護路由生效)
+	authorized := r.Group("/")
+	authorized.Use(middleware.AuthMiddleware())
 	{
-		// 登入路由 (不需驗證)
-		api.POST("/login", routes.LoginHandler(db.DB)) // ⚠️ 改成 db.DB (GORM)
+		// 帳戶管理
+		authorized.GET("/users", handler.GetUsers)
+		authorized.GET("/users/:id", handler.GetUserByID)
+		authorized.POST("/users", handler.CreateUser)
+		authorized.PATCH("/users/:id", handler.UpdateUser)
+		authorized.DELETE("/users/:id", handler.DeleteUser)
 
-		// 新增 /api/roles 路由 (角色清單查詢)
-		api.GET("/roles", handler.GetRoles)
+		// 角色管理
+		authorized.GET("/roles", handler.GetRoles)
+		authorized.GET("/roles/:id", handler.GetRoleByID)
+		authorized.POST("/roles", handler.CreateRole)
+		authorized.PATCH("/roles/:id", handler.UpdateRole)
+		authorized.DELETE("/roles/:id", handler.DeleteRole)
 
-		// --- 基礎資料管理 API 群組 (需要 JWT 驗證) ---
-		definitions := api.Group("/definitions")
-		definitions.Use(middleware.JWTAuthMiddleware())
-		{
-			// 公司管理的路由
-			companies := definitions.Group("/companies")
-			{
-				companies.POST("", handler.CreateCompany)
-				companies.GET("", handler.GetCompanies)
-				companies.GET("/:id", handler.GetCompanyByID)
-				companies.PUT("/:id", handler.UpdateCompany)
-				companies.DELETE("/:id", handler.DeleteCompany)
-			}
+		// 公司管理
+		authorized.GET("/companies", handler.GetCompanies)
+		authorized.GET("/companies/:id", handler.GetCompanyByID)
+		authorized.POST("/companies", handler.CreateCompany)
+		authorized.PATCH("/companies/:id", handler.UpdateCompany)
+		authorized.DELETE("/companies/:id", handler.DeleteCompany)
+		authorized.GET("/companies/tree", handler.GetCompaniesTree) // 新增的公司樹狀結構
 
-			// 客戶管理的路由
-			customers := definitions.Group("/customers")
-			{
-				customers.POST("", handler.CreateCustomer)
-				customers.GET("", handler.GetCustomers)
-				customers.GET("/:id", handler.GetCustomerByID)
-				customers.PUT("/:id", handler.UpdateCustomer)
-				customers.DELETE("/:id", handler.DeleteCustomer)
-				customers.GET("/code/:code", handler.GetCustomerByCode)
-			}
+		// 客戶管理
+		authorized.GET("/customers", handler.GetCustomers)
+		authorized.GET("/customers/:id", handler.GetCustomerByID)
+		authorized.POST("/customers", handler.CreateCustomer)
+		authorized.PATCH("/customers/:id", handler.UpdateCustomer)
+		authorized.DELETE("/customers/:id", handler.DeleteCustomer)
+		authorized.POST("/customer-transaction-terms", handler.CreateCustomerTransactionTerm)
+		authorized.PATCH("/customer-transaction-terms/:id", handler.UpdateCustomerTransactionTerm)
+		authorized.DELETE("/customer-transaction-terms/:id", handler.DeleteCustomerTransactionTerm)
 
-			// 產品類別管理的路由
-			categories := definitions.Group("/product-categories")
-			{
-				categories.POST("", handler.CreateProductCategory)
-				categories.GET("", handler.GetProductCategories)
-				categories.PUT("/:id", handler.UpdateProductCategory)
-				categories.DELETE("/:id", handler.DeleteProductCategory)
-			}
-		}
 
-		// --- 帳號管理 API 群組 (需要 JWT 驗證) ---
-		accounts := api.Group("/manage-accounts")
-		accounts.Use(middleware.JWTAuthMiddleware())
-		{
-			accounts.GET("", handler.GetAccounts)
-			accounts.POST("", handler.CreateAccount)
-			accounts.PUT("/:id", handler.UpdateAccount)
-			accounts.DELETE("/:id", handler.DeleteAccount)
-			accounts.PUT("/:id/reset-password", handler.ResetPassword)
-		}
+		// 產品定義管理 (暫時只有 Category，未來擴展 Shape, Function, Specification)
+		authorized.GET("/product-categories", handler.GetProductCategories)
+		authorized.GET("/product-categories/:id", handler.GetProductCategoryByID)
+		authorized.POST("/product-categories", handler.CreateProductCategory)
+		authorized.PATCH("/product-categories/:id", handler.UpdateProductCategory)
+		authorized.DELETE("/product-categories/:id", handler.DeleteProductCategory)
 
-		// --- Menu (功能頁) API 群組 (需要 JWT 驗證) ---
-		menus := api.Group("/menus")
-		menus.Use(middleware.JWTAuthMiddleware())
-		{
-			menus.GET("", handler.GetMenus)
-			menus.POST("", handler.CreateMenu)
-			menus.PUT("/:id", handler.UpdateMenu)
-			menus.DELETE("/:id", handler.DeleteMenu)
-		}
+		// 菜單管理 (新增路由)
+		authorized.GET("/menus", handler.GetMenus)
+		authorized.GET("/menus/:id", handler.GetMenuByID)
+		authorized.POST("/menus", handler.CreateMenu)
+		authorized.PATCH("/menus/:id", handler.UpdateMenu)
+		authorized.DELETE("/menus/:id", handler.DeleteMenu)
+		authorized.GET("/roles/:roleID/menus", handler.GetMenusByRoleID) // 新增：根據角色 ID 獲取菜單列表
 
-		// --- 角色分配功能頁 (Role-Menu Relations) API 群組 (需要 JWT 驗證) ---
-		roleMenus := api.Group("/role-menus")
-		roleMenus.Use(middleware.JWTAuthMiddleware())
-		{
-			roleMenus.GET("", handler.GetRoleMenus)
-			roleMenus.POST("", handler.UpdateRoleMenus)
-			roleMenus.DELETE("", handler.DeleteRoleMenu)
-		}
+		// 角色菜單關聯管理 (新增路由)
+		authorized.GET("/role-menus", handler.GetRoleMenus)
+		authorized.POST("/role-menus", handler.CreateRoleMenu)
+		authorized.DELETE("/role-menus", handler.DeleteRoleMenu) // 通常用於刪除特定關聯，請確保 handler 中的邏輯正確
+
+		// 其他現有路由...
+
 	}
 
-	// --- 啟動伺服器 ---
+	// 啟動 Gin 伺服器
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8080" // 默認埠號
 	}
-
-	log.Printf("🚀 Server starting on port %s", port)
-	log.Fatal(r.Run(":" + port))
+	log.Printf("🚀 伺服器啟動於 :%s 埠", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("❌ 伺服器啟動失敗: %v", err)
+	}
 }
