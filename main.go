@@ -2,158 +2,104 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 
-	"fastener-api/db"
-	"fastener-api/handler"
-	"fastener-api/middleware"
-	"fastener-api/models"
-	"fastener-api/routes"
-
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/joho/godotenv"
+	"github.com/wac0705/fastener-api/db"
+	"github.com/wac0705/fastener-api/handler"
+	"github.com/wac0705/fastener-api/middleware"
+	"github.com/wac0705/fastener-api/routes"
 )
 
-func main() {
-	// 加載 .env 檔案
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("⚠️ 無法加載 .env 檔案 (可能在生產環境中)")
-	}
+func setupRoutes(app *fiber.App) {
+	// Auth routes
+	app.Post("/api/login", routes.Login)
 
-	// 設置 Gin 模式
-	ginMode := os.Getenv("GIN_MODE")
-	if ginMode == "release" {
-		gin.SetMode(gin.ReleaseMode)
-	} else {
-		log.Println("🚧 Gin 運行在 Debug 模式，請在生產環境中設置 GIN_MODE=release")
-	}
+	// API Group with JWT middleware protection
+	api := app.Group("/api", middleware.Protected())
 
-	// 初始化資料庫連接
-	db.Init()
-
-	// 自動遷移資料庫模型
-	// 確保所有需要的模型都在這裡
-	err = db.DB.AutoMigrate(
-		&models.User{},
-		&models.Role{},
-		&models.Company{},
-		&models.Customer{},
-		&models.CustomerTransactionTerm{},
-		&models.Inquiry{},
-		&models.InquiryItem{},
-		&models.Estimation{},
-		&models.Quotation{},
-		&models.Material{},
-		&models.Process{},
-		&models.Port{},
-		&models.LogisticsRule{},
-		&models.QuotationTemplate{},
-		&models.ProductCategory{},
-		&models.ProductShape{},
-		&models.ProductFunction{},
-		&models.ProductSpecification{},
-		&models.CategoryShapeRelation{},
-		&models.CategoryFunctionRelation{},
-		&models.ShapeSpecRelation{},
-		&models.FunctionSpecRelation{},
-		&models.Menu{},
-		&models.RoleMenuRelation{}, // <-- 在這裡添加 RoleMenuRelation 模型
-		&models.Review{},
-	)
-	if err != nil {
-		log.Fatalf("❌ GORM AutoMigrate 錯誤:%v", err)
-	}
-	log.Println("✅ 資料庫模型自動遷移完成")
-
-	// 初始化 Gin 路由器
-	r := gin.Default()
-
-	// CORS 配置 (允許所有來源，僅用於開發，生產環境請限制)
-	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true") // 如果需要支持憑證
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-		c.Next()
+	// A simple welcome route to test JWT
+	api.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Welcome to the protected area!")
 	})
 
-	// 註冊公共路由 (無需身份驗證)
-	routes.SetupAuthRoutes(r)
+	// Company Routes
+	api.Get("/companies", handler.GetCompanies)
+	api.Get("/companies/tree", handler.GetCompaniesTree) // Get companies as a tree structure
+	api.Get("/companies/:id", handler.GetCompany)
+	api.Post("/companies", handler.CreateCompany)
+	api.Put("/companies/:id", handler.UpdateCompany)
+	api.Delete("/companies/:id", handler.DeleteCompany)
 
-	// 身份驗證中間件 (對所有受保護路由生效)
-	authorized := r.Group("/")
-	authorized.Use(middleware.AuthMiddleware())
-	{
-		// 帳戶管理
-		authorized.GET("/users", handler.GetUsers)
-		authorized.GET("/users/:id", handler.GetUserByID)
-		authorized.POST("/users", handler.CreateUser)
-		authorized.PATCH("/users/:id", handler.UpdateUser)
-		authorized.DELETE("/users/:id", handler.DeleteUser)
+	// Role Routes
+	api.Get("/roles", handler.GetRoles)
+	api.Get("/roles/:id", handler.GetRole)
+	api.Post("/roles", handler.CreateRole)
+	api.Put("/roles/:id", handler.UpdateRole)
+	api.Delete("/roles/:id", handler.DeleteRole)
 
-		// 角色管理
-		authorized.GET("/roles", handler.GetRoles)
-		authorized.GET("/roles/:id", handler.GetRoleByID)
-		authorized.POST("/roles", handler.CreateRole)
-		authorized.PATCH("/roles/:id", handler.UpdateRole)
-		authorized.DELETE("/roles/:id", handler.DeleteRole)
+	// Menu Routes
+	api.Get("/menus", handler.GetMenus)             // Get flat list of menus
+	api.Get("/menus/tree", handler.GetAllMenusTree) // NEW: Get full menu tree for admin pages
+	api.Get("/menus/:id", handler.GetMenu)
+	api.Post("/menus", handler.CreateMenu)
+	api.Put("/menus/:id", handler.UpdateMenu)
+	api.Delete("/menus/:id", handler.DeleteMenu)
 
-		// 公司管理
-		authorized.GET("/companies", handler.GetCompanies)
-		authorized.GET("/companies/:id", handler.GetCompanyByID)
-		authorized.POST("/companies", handler.CreateCompany)
-		authorized.PATCH("/companies/:id", handler.UpdateCompany)
-		authorized.DELETE("/companies/:id", handler.DeleteCompany)
-		authorized.GET("/companies/tree", handler.GetCompaniesTree) // 新增的公司樹狀結構
+	// User-specific menu route
+	api.Get("/user-menus", handler.GetUserMenus) // NEW: Get menu tree for the logged-in user's sidebar
 
-		// 客戶管理
-		authorized.GET("/customers", handler.GetCustomers)
-		authorized.GET("/customers/:id", handler.GetCustomerByID)
-		authorized.POST("/customers", handler.CreateCustomer)
-		authorized.PATCH("/customers/:id", handler.UpdateCustomer)
-		authorized.DELETE("/customers/:id", handler.DeleteCustomer)
-		authorized.POST("/customer-transaction-terms", handler.CreateCustomerTransactionTerm)
-		authorized.PATCH("/customer-transaction-terms/:id", handler.UpdateCustomerTransactionTerm)
-		authorized.DELETE("/customer-transaction-terms/:id", handler.DeleteCustomerTransactionTerm)
+	// Role-Menu Relation Routes
+	api.Get("/roles/:id/menus", handler.GetRoleMenus)
+	api.Put("/roles/:id/menus", handler.UpdateRoleMenus)
 
+	// Account Management Routes
+	api.Get("/manage-accounts", handler.GetAccounts)
+	api.Post("/manage-accounts", handler.CreateAccount)
+	api.Put("/manage-accounts/:id", handler.UpdateAccount)
+	api.Delete("/manage-accounts/:id", handler.DeleteAccount)
 
-		// 產品定義管理 (暫時只有 Category，未來擴展 Shape, Function, Specification)
-		authorized.GET("/product-categories", handler.GetProductCategories)
-		authorized.GET("/product-categories/:id", handler.GetProductCategoryByID)
-		authorized.POST("/product-categories", handler.CreateProductCategory)
-		authorized.PATCH("/product-categories/:id", handler.UpdateProductCategory)
-		authorized.DELETE("/product-categories/:id", handler.DeleteProductCategory)
+	// Customer Routes
+	api.Get("/customers", handler.GetCustomers)
+	api.Post("/customers", handler.CreateCustomer)
+	api.Get("/customers/:id", handler.GetCustomer)
+	api.Put("/customers/:id", handler.UpdateCustomer)
+	api.Delete("/customers/:id", handler.DeleteCustomer)
+	api.Get("/customers/:id/transaction-terms", handler.GetCustomerTransactionTerms)
+	api.Post("/customers/:id/transaction-terms", handler.CreateCustomerTransactionTerm)
+	api.Put("/customer-transaction-terms/:termId", handler.UpdateCustomerTransactionTerm)
+	api.Delete("/customer-transaction-terms/:termId", handler.DeleteCustomerTransactionTerm)
 
-		// 菜單管理 (新增路由)
-		authorized.GET("/menus", handler.GetMenus)
-		authorized.GET("/menus/:id", handler.GetMenuByID)
-		authorized.POST("/menus", handler.CreateMenu)
-		authorized.PATCH("/menus/:id", handler.UpdateMenu)
-		authorized.DELETE("/menus/:id", handler.DeleteMenu)
-		authorized.GET("/roles/:roleID/menus", handler.GetMenusByRoleID) // 新增：根據角色 ID 獲取菜單列表
+	// Product Definition Routes
+	api.Get("/definitions/product-categories", handler.GetProductCategories)
+	api.Post("/definitions/product-categories", handler.CreateProductCategory)
+	// Add other product definition routes here if needed
+}
 
-		// 角色菜單關聯管理 (新增路由)
-		authorized.GET("/role-menus", handler.GetRoleMenus)
-		authorized.POST("/role-menus", handler.CreateRoleMenu)
-		authorized.DELETE("/role-menus", handler.DeleteRoleMenu) // 通常用於刪除特定關聯，請確保 handler 中的邏輯正確
-
-		// 其他現有路由...
-
+func main() {
+	// Load .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Note: .env file not found, using environment variables")
 	}
 
-	// 啟動 Gin 伺服器
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080" // 默認埠號
-	}
-	log.Printf("🚀 伺服器啟動於 :%s 埠", port)
-	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("❌ 伺服器啟動失敗: %v", err)
-	}
+	app := fiber.New()
+
+	// CORS Middleware
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: os.Getenv("FRONTEND_URL"),
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
+	}))
+
+	// Connect to the database
+	db.ConnectDB()
+
+	// Setup routes
+	setupRoutes(app)
+
+	// Start server
+	log.Fatal(app.Listen(":3001"))
 }
