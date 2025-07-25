@@ -11,6 +11,9 @@ RUN apk add --no-cache git
 # 這樣只有在依賴變更時，才會重新下載
 COPY go.mod go.sum ./
 
+# 使用 go mod tidy 來確保 go.sum 是最新的並且清理依賴
+RUN go mod tidy
+
 # 下載所有依賴
 RUN go mod download
 
