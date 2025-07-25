@@ -1,30 +1,41 @@
-# 使用官方的 Go 映像檔作為基礎
-FROM golang:1.22-alpine
+# --- Stage 1: The Builder ---
+# This stage builds the Go binary.
+FROM golang:1.22-alpine AS builder
 
-# 設定工作目錄
+# Set the working directory
 WORKDIR /app
 
-# 在 Alpine 系統中安裝 git，因為 go mod 可能會需要它
+# Install git, which is needed for go modules
 RUN apk add --no-cache git
 
-# 僅複製 go.mod 和 go.sum 檔案
-# 這樣只有在依賴變更時，才會重新下載
+# Copy the module files first
 COPY go.mod go.sum ./
 
-# 使用 go mod tidy 來確保 go.sum 是最新的並且清理依賴
-RUN go mod tidy
-
-# 下載所有依賴
+# Download all dependencies. This command leverages Docker's layer caching.
+# It will only re-run if go.mod or go.sum change.
 RUN go mod download
 
-# 複製所有專案原始碼
+# Copy the rest of the source code
 COPY . .
 
-# 編譯 Go 應用程式
-RUN go build -o main .
+# Build the application, creating a statically-linked binary
+# CGO_ENABLED=0 is important for creating a binary that can run on a minimal base image like scratch or alpine
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /main .
 
-# 設定容器啟動時執行的命令
-CMD ["./main"]
 
-# 向 Docker 宣告容器在執行時監聽的埠號 (僅為文件作用)
+# --- Stage 2: The Final Image ---
+# This stage creates the tiny final image for production.
+FROM alpine:latest
+
+# It's good practice to run as a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+# Copy only the compiled binary from the builder stage
+COPY --from=builder /main /main
+
+# Expose the port the app runs on
 EXPOSE 3001
+
+# Set the entrypoint for the container
+ENTRYPOINT ["/main"]
